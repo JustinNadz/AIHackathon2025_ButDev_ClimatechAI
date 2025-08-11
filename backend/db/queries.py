@@ -1,11 +1,9 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from .models import (
-    FloodData, ChatHistory, EarthquakeData, LandslideData, 
-    WeatherData, InfrastructureData, EvacuationCenterData
+    FloodData, EarthquakeData, LandslideData, 
+    WeatherData
 )
-from shapely.geometry import shape
-import json
 from datetime import datetime
 
 

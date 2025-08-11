@@ -12,7 +12,6 @@ from db.queries import (
     get_high_risk_areas
 )
 from db.models import FloodData
-from shapely.geometry import Polygon, Point
 import json
 
 
