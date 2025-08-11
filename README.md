@@ -1,434 +1,212 @@
-# ClimaTech AI System Structure & Features
+# ButDev AI Hackathon - Flood Risk Analysis
 
-## 🏗️ CORE SYSTEM ARCHITECTURE
+A geospatial flood risk analysis system using PostgreSQL with PostGIS for storing and querying flood data with geometry and risk levels (0-2 scale).
 
-### 1. DATA ACQUISITION MODULE
-**Real-Time Data Sources Integration**
+## Features
 
-#### 1.1 Weather Data Integration
-- **PAGASA API Connection**
-  - Low Pressure Area (LPA) detection
-  - Typhoon signal monitoring (1-5 scale)
-  - Real-time weather updates
-  - Storm tracking and forecasting
+- **PostgreSQL with PostGIS**: Store flood data with geospatial geometry
+- **Risk Assessment**: 0-2 scale flood risk levels
+- **Shapefile Support**: Ingest flood data from shapefiles (.shp)
+- **Geospatial Queries**: Spatial analysis and filtering capabilities
+- **AI Integration**: Chat interface for querying flood data
 
-#### 1.2 Geological Data Integration  
-- **PHIVOLCS API Connection**
-  - Earthquake magnitude detection
-  - Seismic activity monitoring
-  - Geological hazard mapping
-  - Real-time tremor data
+## Prerequisites
 
-#### 1.3 Energy Monitoring Integration
-- **CVM-A1500 SCADA Device**
-  - Real-time voltage monitoring
-  - Electrical behavior analysis
-  - Power grid stability tracking
-  - Blackout prediction capabilities
+1. **PostgreSQL** (version 12 or higher)
+2. **PostGIS Extension** (version 3.0 or higher)
+3. **Python 3.8+**
 
-#### 1.4 Hardware Sensor Network
-- **Thermal Drone Fleet**
-  - Heat signature detection
-  - GPS location tracking
-  - Real-time video transmission
-  - Remote human operation
+## Installation
 
----
+### 1. Install PostgreSQL and PostGIS
 
-## 🤖 AI PROCESSING ENGINE
-
-### 2. INTELLIGENT FORECASTING SYSTEM
-
-#### 2.1 Flood Prediction & Response
-**Features:**
-- PAGASA signal analysis and interpretation
-- Flood-prone area identification
-- Impact timeline calculation
-- Evacuation route optimization
-- Community alert generation
-
-**Algorithm:**
-```
-FLOOD_MANAGEMENT_SYSTEM:
-  INPUT: PAGASA_signal_data
-  PROCESS: risk_assessment + area_mapping
-  OUTPUT: actionable_safety_instructions + evacuation_routes
+#### On macOS (using Homebrew):
+```bash
+brew install postgresql postgis
+brew services start postgresql
 ```
 
-#### 2.2 Earthquake & Landslide Management
-**Features:**
-- Earthquake magnitude impact assessment
-- Landslide risk zone mapping
-- Thermal drone deployment coordination
-- Search and rescue optimization
-- Real-time survivor detection
-
-**Algorithm:**
-```
-EARTHQUAKE_RESPONSE_SYSTEM:
-  INPUT: PHIVOLCS_earthquake_data
-  IF magnitude >= 5.0:
-    ACTIVATE: landslide_risk_assessment
-    DEPLOY: thermal_drones
-    SCAN: affected_areas
-    DETECT: human_heat_signatures
-    NOTIFY: NDRRMC + rescue_teams
+#### On Ubuntu/Debian:
+```bash
+sudo apt update
+sudo apt install postgresql postgresql-contrib postgis
+sudo systemctl start postgresql
 ```
 
-#### 2.3 Wildfire Prevention System
-**Features:**
-- Temperature threshold monitoring
-- Drought condition analysis
-- Fire-prone area identification
-- Risk level classification
-- Prevention strategy generation
+#### On Windows:
+Download and install from [PostgreSQL official website](https://www.postgresql.org/download/windows/)
 
-**Algorithm:**
-```
-WILDFIRE_PREVENTION_SYSTEM:
-  INPUT: temperature_data + drought_conditions
-  IF temp > DROUGHT_THRESHOLD:
-    IDENTIFY: fire_risk_areas
-    CLASSIFY: wooden_houses + vegetation_areas
-    ALERT: Bureau_of_Fire + LGUs
-    GENERATE: prevention_protocols
-```
+### 2. Create Database and Enable PostGIS
 
-#### 2.4 Clean Energy Management
-**Features:**
-- Power outage prediction
-- Critical facility prioritization
-- Alternative energy source matching
-- Resource allocation optimization
-- Emergency power coordination
+```bash
+# Connect to PostgreSQL
+psql -U postgres
 
-**Algorithm:**
-```
-ENERGY_MANAGEMENT_SYSTEM:
-  INPUT: CVM_A1500_voltage_data
-  IF blackout_predicted:
-    PRIORITY: hospitals + emergency_centers + telecom
-    MATCH: solar_panels + wind_turbines + water_turbines
-    COORDINATE: energy_providers
-    DEPLOY: alternative_power_sources
+# Create database
+CREATE DATABASE flood_db;
+
+# Connect to the new database
+\c flood_db
+
+# Enable PostGIS extension
+CREATE EXTENSION postgis;
+
+# Exit psql
+\q
 ```
 
----
+### 3. Setup Python Environment
 
-## 🗺️ MAPPING & VISUALIZATION SYSTEM
-
-### 3. INTERACTIVE MAP INTERFACE
-
-#### 3.1 Google Maps Integration
-**Features:**
-- Real-time location tracking
-- Color-coded risk zones
-- Interactive markers and overlays
-- Route planning and optimization
-- Multi-layer data visualization
-
-#### 3.2 Risk Zone Classification
-**Color Coding System:**
-- 🔴 **RED (DANGER)**: High-risk areas requiring immediate action
-- 🟡 **YELLOW (ALERT)**: Caution areas with potential risks
-- 🟢 **GREEN (SAFE)**: Low-risk zones and safe evacuation areas
-
-#### 3.3 Dynamic Markers & Overlays
-**Map Features:**
-- Flood-prone area boundaries
-- Landslide risk zones
-- Fire hazard regions
-- Hospital and emergency center locations
-- Evacuation route indicators
-- Alternative energy source positions
-
----
-
-## 📱 USER INTERFACE SYSTEM
-
-### 4. DASHBOARD & CONTROL PANEL
-
-#### 4.1 Material UI Interface
-**Main Dashboard Components:**
-- Real-time alert feed
-- Risk level indicators
-- Weather condition display
-- Emergency contact quick access
-- System status monitoring
-
-#### 4.2 Sidebar Control Panel
-**Settings & Options:**
-- Disaster type filters
-- Risk threshold adjustments
-- Notification preferences
-- Historical data access
-- Energy monitoring controls
-- Map layer selections
-
-#### 4.3 Alert & Notification System
-**Communication Features:**
-- Real-time emergency alerts
-- Stakeholder notifications
-- Community broadcasts
-- Emergency instruction delivery
-- Status update distribution
-
----
-
-## 🚨 EMERGENCY RESPONSE FEATURES
-
-### 5. DISASTER-SPECIFIC RESPONSE MODULES
-
-#### 5.1 Flood Response Module
-**Actionable Instructions Generated:**
-```
-🛑 FLOOD SAFETY PROTOCOL:
-✅ Stay Informed - Monitor official weather updates
-✅ Avoid Floodwaters - 6 inches = knockdown risk, 2 feet = vehicle sweep
-✅ Turn Off Utilities - Disconnect electricity, gas, water
-✅ Evacuate if Needed - Move to higher ground with emergency supplies
-✅ Protect Valuables - Secure important items and pets
+```bash
+cd backend
+pip install -r requirements.txt
 ```
 
-#### 5.2 Earthquake Response Module
-**Features:**
-- Immediate safety instructions
-- Aftershock preparation guidance
-- Landslide risk warnings
-- Structural damage assessment
-- Emergency contact information
+### 4. Configure Environment
 
-#### 5.3 Wildfire Prevention Module
-**Features:**
-- Fire risk level alerts
-- Prevention strategy recommendations
-- Evacuation route planning
-- Air quality monitoring
-- Emergency service coordination
+Create a `.env` file in the backend directory with your database credentials:
 
-#### 5.4 Power Outage Management Module
-**Features:**
-- Blackout prediction alerts
-- Critical facility prioritization
-- Alternative energy deployment
-- Resource availability tracking
-- Restoration timeline estimates
+```env
+DATABASE_URL=postgresql://username:password@localhost:5432/flood_db
+OPENROUTER_API_KEY=your_api_key_here
+CHROMA_DB_DIR=./chroma_store
+```
 
----
+### 5. Initialize Database
 
-## 🔗 STAKEHOLDER INTEGRATION SYSTEM
+```bash
+python init_db.py
+```
 
-### 6. COMMUNICATION & COORDINATION FEATURES
+This will:
+- Create database if it doesn't exist
+- Enable PostGIS extension
+- Create necessary tables
 
-#### 6.1 Government Agency Integration
-**Connected Organizations:**
-- **PAGASA**: Weather data and forecasting
-- **PHIVOLCS**: Earthquake and geological data
-- **NDRRMC**: Disaster response coordination
-- **LGUs**: Local government implementation
-- **Bureau of Fire Protection**: Fire prevention and response
+## Usage
 
-#### 6.2 Emergency Services Network
-**Coordination Features:**
-- Real-time data sharing
-- Resource allocation management
-- Response team deployment
-- Communication protocol automation
-- Status reporting systems
+### Ingesting Flood Data
 
-#### 6.3 Community Alert System
-**Public Communication:**
-- Mass notification capabilities
-- Multilingual alert support
-- Social media integration
-- Emergency broadcast coordination
-- Community feedback collection
+Currently supports shapefile (.shp) ingestion:
 
----
+```bash
+python run_ingestions.py path/to/flood_zones.shp
+```
 
-## ⚡ CLEAN ENERGY FEATURES
+The system will:
+- Read the shapefile using GeoPandas
+- Extract geometry as WKT (Well-Known Text)
+- Extract risk levels from a specified column (0-2 scale)
+- Store data in PostgreSQL with PostGIS
 
-### 7. ALTERNATIVE ENERGY MANAGEMENT
+### Customizing Risk Column
 
-#### 7.1 Energy Source Coordination
-**Renewable Energy Types:**
-- **Solar Panels**: Daytime power generation with battery storage
-- **Wind Turbines**: Continuous power in suitable wind conditions  
-- **Water Turbines**: Hydroelectric power from flowing water
-- **Hybrid Systems**: Combined renewable energy solutions
+Edit the `risk_column` parameter in `run_ingestions.py` to match your data:
 
-#### 7.2 Critical Infrastructure Priority
-**24/7 Power Requirements:**
-- **Hospitals**: Medical equipment, surgical operations, life support
-- **Emergency Response Centers**: Communication hubs, coordination facilities
-- **Telecommunications**: Network infrastructure, emergency communications
+```python
+ingestor.ingest_shp(
+    file_path=file_path,
+    risk_column="your_risk_column_name",  # Change this to your column name
+    default_risk=1.0  # Default risk if column not found
+)
+```
 
-#### 7.3 Energy Monitoring Dashboard
-**Features:**
-- Real-time voltage tracking
-- Power consumption analysis
-- Outage prediction algorithms
-- Resource availability status
-- Emergency deployment coordination
+### Database Queries
 
----
+The system provides several query functions in `db/queries.py`:
 
-## 📊 DATA ANALYTICS & REPORTING
+- `get_flood_data_by_risk()`: Filter by risk level
+- `get_flood_data_within_bounds()`: Spatial queries within bounds
+- `add_chat_history()`: Store chat interactions
+- `get_chat_history()`: Retrieve chat history
 
-### 8. INTELLIGENCE & INSIGHTS FEATURES
+## Data Schema
 
-#### 8.1 Historical Data Analysis
-**Features:**
-- Disaster pattern recognition
-- Risk trend analysis
-- Response effectiveness tracking
-- Resource utilization optimization
-- Predictive modeling improvements
+### FloodData Table
+- `id`: Primary key
+- `geometry`: PostGIS geometry (POLYGON, SRID 4326)
+- `risk_level`: Float (0-2 scale for flood risk)
 
-#### 8.2 Real-Time Analytics
-**Features:**
-- Live data processing
-- Instant risk calculations
-- Dynamic threat assessment
-- Resource allocation optimization
-- Performance monitoring
+### ChatHistory Table
+- `id`: Primary key
+- `question`: User question
+- `answer`: System response
 
-#### 8.3 Reporting System
-**Features:**
-- Automated incident reports
-- Stakeholder status updates
-- Performance analytics
-- Resource usage tracking
-- Impact assessment documentation
+## API Endpoints
 
----
+The Flask application provides endpoints for:
+- `/ask` (POST): Chat interface for flood data queries
+- `/ingest` (POST): Ingest text documents for RAG
 
-## 🔧 SYSTEM ADMINISTRATION
+## Development
 
-### 9. BACKEND MANAGEMENT FEATURES
+### Running the Application
 
-#### 9.1 Database Management
-**Features:**
-- Real-time data storage
-- Historical record keeping
-- Backup and recovery systems
-- Data integrity monitoring
-- Performance optimization
+```bash
+python app.py
+```
 
-#### 9.2 System Monitoring
-**Features:**
-- Server health tracking
-- API connection status
-- Data flow monitoring
-- Error detection and logging
-- Performance metrics tracking
+### Testing Database Connection
 
-#### 9.3 Security & Access Control
-**Features:**
-- User authentication systems
-- Role-based access control
-- Data encryption protocols
-- Audit trail maintenance
-- Security threat monitoring
+```bash
+python -c "from db.base import engine; print('Database connected successfully!')"
+```
 
----
+## Example Usage
 
-## 🎯 KEY SYSTEM CAPABILITIES
+```python
+from db.base import SessionLocal
+from db.queries import add_flood_data, get_flood_data_by_risk
 
-### 10. CORE FUNCTIONAL FEATURES
+# Add flood data
+db = SessionLocal()
+add_flood_data(
+    db=db,
+    geometry_wkt="POLYGON((-74.01 40.71, -74.01 40.72, -74.00 40.72, -74.00 40.71, -74.01 40.71))",
+    risk_level=1.5
+)
 
-#### 10.1 Predictive Intelligence
-- Multi-disaster scenario forecasting
-- Compound risk assessment
-- Resource demand prediction
-- Timeline estimation
-- Impact magnitude calculation
+# Query by risk level
+high_risk_areas = get_flood_data_by_risk(db, min_risk=1.0)
+print(f"Found {len(high_risk_areas)} high-risk areas")
+```
 
-#### 10.2 Decision Support
-- Automated recommendation generation
-- Risk-based prioritization
-- Resource optimization
-- Action plan development
-- Stakeholder coordination
+## Troubleshooting
 
-#### 10.3 Real-Time Operations
-- Continuous monitoring
-- Instant alert generation
-- Dynamic map updates
-- Live data processing
-- Immediate response coordination
+### Common Issues
 
-#### 10.4 Integration Capabilities
-- Multi-source data fusion
-- Cross-platform communication
-- Hardware device connectivity
-- Third-party system integration
-- Scalable architecture support
+1. **PostGIS extension not found**:
+   ```bash
+   # Install PostGIS extension
+   sudo apt install postgresql-13-postgis-3  # Adjust version as needed
+   ```
 
----
+2. **Database connection failed**:
+   - Check PostgreSQL is running
+   - Verify database credentials in `.env`
+   - Ensure database exists
 
-## 🚀 SYSTEM DEPLOYMENT FEATURES
+3. **Geometry errors**:
+   - Ensure data is in WGS84 (EPSG:4326) coordinate system
+   - Check geometry validity
 
-### 11. IMPLEMENTATION & SCALING
+4. **Shapefile ingestion errors**:
+   - Verify shapefile contains valid geometries
+   - Check that risk column exists in the shapefile
+   - Ensure risk values are numeric and within 0-2 range
 
-#### 11.1 Pilot Program Features
-- Butuan area focus implementation
-- Historical data integration
-- Local stakeholder training
-- Performance validation
-- System optimization
+### Logs
 
-#### 11.2 Scalability Features
-- Multi-region expansion capability
-- Additional data source integration
-- Increased user capacity
-- Enhanced processing power
-- Extended hardware network
+Check application logs for detailed error messages and debugging information.
 
-#### 11.3 Maintenance & Updates
-- Automated system updates
-- Algorithm improvement cycles
-- Hardware maintenance scheduling
-- User feedback integration
-- Continuous optimization protocols
+## Contributing
 
----
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
 
-## 📈 SUCCESS MEASUREMENT FEATURES
+## License
 
-### 12. PERFORMANCE MONITORING
-
-#### 12.1 Response Metrics
-- Alert delivery speed
-- Decision accuracy rates
-- Resource deployment efficiency
-- Community response rates
-- System reliability scores
-
-#### 12.2 Impact Assessment
-- Life safety improvements
-- Property damage reduction
-- Energy continuity rates
-- Environmental impact measures
-- Cost-benefit analysis
-
-#### 12.3 Continuous Improvement
-- Machine learning adaptation
-- Algorithm optimization
-- User experience enhancement
-- System performance tuning
-- Feature expansion planning
-
----
-
-## 🎪 UNIQUE VALUE FEATURES
-
-### Core Differentiators:
-1. **Actionable Intelligence**: Beyond data - specific action recommendations
-2. **Multi-Hazard Integration**: Single platform for all disaster types
-3. **Clean Energy Focus**: Sustainable emergency power solutions
-4. **Real-Time Coordination**: Instant stakeholder communication
-5. **Predictive Capabilities**: Proactive rather than reactive approach
-6. **Community-Centric**: Direct citizen engagement and support
-7. **Scalable Architecture**: Expandable to multiple regions
-8. **Evidence-Based Decisions**: Data-driven response protocols
+This project is part of the ButDev AI Hackathon.
