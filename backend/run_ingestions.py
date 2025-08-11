@@ -17,12 +17,12 @@ def main():
         print("Usage: python run_ingestions.py <data_type> <file_path> [options]")
         print("\nData types:")
         print("  flood     - Ingest flood data (uses 'Var' column)")
-        print("  landslide - Ingest landslide data (uses 'HAZ' column)")
+        print("  landslide - Ingest landslide data (uses 'LH' column)")
         print("\nExamples:")
         print("  python run_ingestions.py flood data/flood_zones.shp")
         print("  python run_ingestions.py landslide data/landslide_zones.shp")
         print("  python run_ingestions.py flood data/flood_zones.shp --risk-column Risk")
-        print("  python run_ingestions.py landslide data/landslide_zones.shp --risk-column HAZ")
+        print("  python run_ingestions.py landslide data/landslide_zones.shp --risk-column LH")
         return
     
     data_type = sys.argv[1].lower()
@@ -57,7 +57,7 @@ def main():
         elif data_type == "landslide":
             # Set default risk column for landslide data
             if not risk_column:
-                risk_column = "HAZ"
+                risk_column = "LH"
             
             print(f"🏔️ Ingesting landslide data with risk column: {risk_column}")
             ingestor = LandslideIngestor()

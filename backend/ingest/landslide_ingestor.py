@@ -12,13 +12,13 @@ class LandslideIngestor:
         if hasattr(self, 'db'):
             self.db.close()
 
-    def ingest_shp(self, file_path: str, risk_column: str = "HAZ", default_risk: float = 2.0):
+    def ingest_shp(self, file_path: str, risk_column: str = "LH", default_risk: float = 2.0):
         """
         Ingest landslide shapefile data into PostgreSQL with PostGIS
         
         Args:
             file_path: Path to the shapefile
-            risk_column: Column name containing risk values (1-3 scale, default: "HAZ")
+            risk_column: Column name containing risk values (1-3 scale, default: "LH")
             default_risk: Default risk value if risk_column is not provided (default: 2.0)
         """
         try:
@@ -47,7 +47,7 @@ class LandslideIngestor:
                     # Extract geometry as WKT
                     geometry_wkt = row.geometry.wkt
                     
-                    # Extract risk level from HAZ column
+                    # Extract risk level from LH column
                     if risk_column in gdf.columns:
                         risk_value = row[risk_column]
                         if pd.isna(risk_value):
