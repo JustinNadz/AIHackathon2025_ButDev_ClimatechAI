@@ -1,11 +1,14 @@
 from flask import Flask, request, jsonify, send_from_directory
-from db.queries import get_flood_data_by_risk, get_flood_data_within_bounds
+from db.queries import (
+    get_flood_data_by_risk,
+)
 from vectordb.ingest import add_documents
 from db.setup import setup_database
 from db.base import SessionLocal, engine
 from sqlalchemy import text
 import json
 import os
+import traceback
 
 # Setup database with PostGIS
 setup_database()
@@ -28,10 +31,16 @@ def ingest():
     return jsonify({"message": f"Added {count} chunks"})
 
 
+# ============================================================================
+# FLOOD DATA ENDPOINTS
+# ============================================================================
+
 @app.route("/api/flood-data", methods=["GET"])
 def get_flood_data():
     """Get all flood data for Google Maps"""
+    db = None
     try:
+        print("🔍 Starting flood data request...")
         db = SessionLocal()
         
         # Get query parameters
@@ -39,28 +48,58 @@ def get_flood_data():
         max_risk = request.args.get('max_risk', type=float)
         limit = request.args.get('limit', 1000, type=int)
         
+        print(f"📊 Query params: min_risk={min_risk}, max_risk={max_risk}, limit={limit}")
+        
         # Query flood data
+        print("🗄️ Querying flood data from database...")
         flood_data = get_flood_data_by_risk(db, min_risk=min_risk, max_risk=max_risk)
+        print(f"✅ Found {len(flood_data)} flood data records")
+        
+        if not flood_data:
+            return jsonify({
+                "type": "FeatureCollection",
+                "features": [],
+                "total": 0,
+                "message": "No flood data found for the specified risk range."
+            })
         
         # Convert to GeoJSON format for Google Maps
         features = []
-        for data in flood_data[:limit]:
-            # Convert WKT to GeoJSON coordinates using engine connection
-            with engine.connect() as conn:
-                result = conn.execute(text(f"SELECT ST_AsGeoJSON(geometry) FROM flood_data WHERE id = {data.id}"))
-                geojson = result.fetchone()[0]
-                geometry = json.loads(geojson)
-            
-            feature = {
-                "type": "Feature",
-                "geometry": geometry,
-                "properties": {
-                    "id": data.id,
-                    "risk_level": data.risk_level,
-                    "risk_category": get_risk_category(data.risk_level)
+        for i, data in enumerate(flood_data[:limit]):
+            try:
+                print(f"🔄 Processing record {i+1}/{min(len(flood_data), limit)}")
+                
+                # Convert WKT to GeoJSON coordinates using engine connection
+                with engine.connect() as conn:
+                    result = conn.execute(text(f"SELECT ST_AsGeoJSON(geometry) FROM flood_data WHERE id = {data.id}"))
+                    geojson_result = result.fetchone()
+                    
+                    if geojson_result is None or geojson_result[0] is None:
+                        print(f"⚠️ No geometry found for record {data.id}")
+                        continue
+                    
+                    geojson = geojson_result[0]
+                    geometry = json.loads(geojson)
+                
+                feature = {
+                    "type": "Feature",
+                    "geometry": geometry,
+                    "properties": {
+                        "id": data.id,
+                        "risk_level": float(data.risk_level),
+                        "risk_category": get_risk_category(data.risk_level),
+                        "area_name": data.area_name,
+                        "source": data.source,
+                        "data_type": "flood"
+                    }
                 }
-            }
-            features.append(feature)
+                features.append(feature)
+                
+            except Exception as e:
+                print(f"❌ Error processing record {data.id}: {e}")
+                continue
+        
+        print(f"✅ Successfully processed {len(features)} features")
         
         geojson_response = {
             "type": "FeatureCollection",
@@ -68,23 +107,42 @@ def get_flood_data():
             "total": len(features)
         }
         
-        db.close()
         return jsonify(geojson_response)
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"❌ Error in get_flood_data: {e}")
+        print(f"📋 Traceback: {traceback.format_exc()}")
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+    
+    finally:
+        if db:
+            db.close()
 
 
 @app.route("/api/flood-data/stats", methods=["GET"])
 def get_flood_stats():
     """Get flood data statistics for dashboard"""
+    db = None
     try:
+        print("📊 Getting flood data statistics...")
         db = SessionLocal()
         
         with engine.connect() as conn:
             # Get total count
             result = conn.execute(text("SELECT COUNT(*) FROM flood_data"))
             total_count = result.fetchone()[0]
+            print(f"📈 Total flood areas: {total_count}")
+            
+            if total_count == 0:
+                return jsonify({
+                    "total_flood_areas": 0,
+                    "risk_statistics": {
+                        "min_risk": 0,
+                        "max_risk": 0,
+                        "avg_risk": 0
+                    },
+                    "risk_distribution": []
+                })
             
             # Get risk level statistics
             result = conn.execute(text("""
@@ -106,7 +164,7 @@ def get_flood_stats():
                 GROUP BY risk_level 
                 ORDER BY risk_level
             """))
-            distribution = [{"risk_level": row[0], "count": row[1]} for row in result.fetchall()]
+            distribution = [{"risk_level": float(row[0]), "count": row[1]} for row in result.fetchall()]
         
         stats_response = {
             "total_flood_areas": total_count,
@@ -118,21 +176,53 @@ def get_flood_stats():
             "risk_distribution": distribution
         }
         
-        db.close()
+        print(f"✅ Statistics calculated successfully")
         return jsonify(stats_response)
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"❌ Error in get_flood_stats: {e}")
+        print(f"📋 Traceback: {traceback.format_exc()}")
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+    
+    finally:
+        if db:
+            db.close()
 
+
+# ============================================================================
+# EARTHQUAKE DATA ENDPOINTS
+# ============================================================================
+
+@app.route("/api/earthquake-data", methods=["GET"])
+def get_earthquake_data():
+    pass
+
+
+# ============================================================================
+# WEATHER DATA ENDPOINTS
+# ============================================================================
+
+@app.route("/api/weather-data", methods=["GET"])
+def get_earthquake_data():
+    pass
+
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
 
 def get_risk_category(risk_level):
     """Convert risk level to category for frontend styling"""
-    if risk_level <= 1.5:
-        return "low"
-    elif risk_level <= 2.5:
-        return "medium"
-    else:
-        return "high"
+    try:
+        risk_level = float(risk_level)
+        if risk_level <= 1.5:
+            return "low"
+        elif risk_level <= 2.5:
+            return "medium"
+        else:
+            return "high"
+    except (ValueError, TypeError):
+        return "unknown"
 
 
 if __name__ == "__main__":
