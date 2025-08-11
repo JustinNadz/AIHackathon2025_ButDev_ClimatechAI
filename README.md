@@ -5,7 +5,7 @@ A geospatial flood risk analysis system using PostgreSQL with PostGIS for storin
 ## Features
 
 - **PostgreSQL with PostGIS**: Store flood data with geospatial geometry
-- **Risk Assessment**: 0-2 scale flood risk levels
+- **Risk Assessment**: 1-3 scale flood risk levels
 - **Shapefile Support**: Ingest flood data from shapefiles (.shp)
 - **Geospatial Queries**: Spatial analysis and filtering capabilities
 - **AI Integration**: Chat interface for querying flood data
@@ -96,18 +96,18 @@ python run_ingestions.py path/to/flood_zones.shp
 The system will:
 - Read the shapefile using GeoPandas
 - Extract geometry as WKT (Well-Known Text)
-- Extract risk levels from a specified column (0-2 scale)
+- Extract risk levels from the "LH" column (1-3 scale)
 - Store data in PostgreSQL with PostGIS
 
 ### Customizing Risk Column
 
-Edit the `risk_column` parameter in `run_ingestions.py` to match your data:
+The system is configured to use the "LH" column by default. If your data uses a different column name, edit the `risk_column` parameter in `run_ingestions.py`:
 
 ```python
 ingestor.ingest_shp(
     file_path=file_path,
     risk_column="your_risk_column_name",  # Change this to your column name
-    default_risk=1.0  # Default risk if column not found
+    default_risk=2.0  # Default risk if column not found
 )
 ```
 
@@ -124,8 +124,8 @@ The system provides several query functions in `db/queries.py`:
 
 ### FloodData Table
 - `id`: Primary key
-- `geometry`: PostGIS geometry (POLYGON, SRID 4326)
-- `risk_level`: Float (0-2 scale for flood risk)
+- `geometry`: PostGIS geometry (MULTIPOLYGON, SRID 4326)
+- `risk_level`: Float (1-3 scale for flood risk)
 
 ### ChatHistory Table
 - `id`: Primary key
@@ -162,12 +162,12 @@ from db.queries import add_flood_data, get_flood_data_by_risk
 db = SessionLocal()
 add_flood_data(
     db=db,
-    geometry_wkt="POLYGON((-74.01 40.71, -74.01 40.72, -74.00 40.72, -74.00 40.71, -74.01 40.71))",
-    risk_level=1.5
+    geometry_wkt="MULTIPOLYGON (((125.56724 8.69465, 125.56751 8.69465, 125.56751 8.69447, 125.56724 8.69447, 125.56724 8.69465)))",
+    risk_level=2.0
 )
 
 # Query by risk level
-high_risk_areas = get_flood_data_by_risk(db, min_risk=1.0)
+high_risk_areas = get_flood_data_by_risk(db, min_risk=2.0)
 print(f"Found {len(high_risk_areas)} high-risk areas")
 ```
 
@@ -192,8 +192,8 @@ print(f"Found {len(high_risk_areas)} high-risk areas")
 
 4. **Shapefile ingestion errors**:
    - Verify shapefile contains valid geometries
-   - Check that risk column exists in the shapefile
-   - Ensure risk values are numeric and within 0-2 range
+   - Check that "LH" column exists in the shapefile
+   - Ensure risk values are numeric and within 1-3 range
 
 ### Logs
 
