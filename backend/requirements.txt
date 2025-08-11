@@ -1,4 +1,9 @@
 langchain-core
+geopandas
+shapely
+langchain
+langchain-openai
+langchain-community
 langgraph
 flask
 python-dotenv
