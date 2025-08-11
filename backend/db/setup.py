@@ -117,21 +117,42 @@ def verify_setup():
             # Test 3: Check tables exist
             result = conn.execute(text("""
                 SELECT table_name FROM information_schema.tables 
-                WHERE table_schema = 'public' AND table_name IN ('flood_data', 'chat_history')
+                WHERE table_schema = 'public' AND table_name IN (
+                    'flood_data', 'landslide_data', 'earthquake_data', 
+                    'weather_data', 'chat_history'
+                )
                 ORDER BY table_name;
             """))
             tables = [row[0] for row in result.fetchall()]
             
-            if 'flood_data' in tables and 'chat_history' in tables:
-                print("✅ Required tables exist")
-            else:
-                print("❌ Missing required tables")
+            expected_tables = ['flood_data', 'landslide_data', 'earthquake_data', 'weather_data', 'chat_history']
+            missing_tables = [table for table in expected_tables if table not in tables]
+            
+            if missing_tables:
+                print(f"❌ Missing tables: {missing_tables}")
+                print(f"✅ Found tables: {tables}")
                 return False
+            else:
+                print(f"✅ All required tables exist: {tables}")
             
             # Test 4: Check spatial functions
             result = conn.execute(text("SELECT ST_AsText(ST_GeomFromText('POINT(0 0)'));"))
             point = result.fetchone()[0]
             print(f"✅ Spatial functions working: {point}")
+            
+            # Test 5: Check table structures
+            print("\n📋 Table structures:")
+            for table_name in ['flood_data', 'landslide_data']:
+                result = conn.execute(text(f"""
+                    SELECT column_name, data_type, udt_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = '{table_name}' 
+                    ORDER BY ordinal_position;
+                """))
+                columns = result.fetchall()
+                print(f"  {table_name}:")
+                for col in columns:
+                    print(f"    - {col[0]}: {col[1]} ({col[2]})")
             
         print("✅ Database verification completed successfully!")
         return True

@@ -26,7 +26,7 @@ class EarthquakeData(Base):
 class LandslideData(Base):
     __tablename__ = "landslide_data"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    geometry = Column(Geometry('POLYGON', srid=4326), nullable=False)
+    geometry = Column(Geometry('MULTIPOLYGON', srid=4326), nullable=False)
     risk_level = Column(Float, nullable=False)  # 1-3 scale for landslide risk
 
 
