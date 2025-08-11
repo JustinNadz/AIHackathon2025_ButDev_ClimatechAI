@@ -2,10 +2,10 @@ from flask import Flask, request, jsonify
 from ai.rag import answer_with_rag
 from db.queries import save_chat
 from vectordb.ingest import add_documents
-from db.base import Base, engine
+from db.setup import setup_database
 
-# Create tables if not exists
-Base.metadata.create_all(bind=engine)
+# Setup database with PostGIS
+setup_database()
 
 app = Flask(__name__)
 
