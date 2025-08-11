@@ -1,39 +1,33 @@
 from flask import Flask, request, jsonify
-from langchain_openai import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
-from dotenv import load_dotenv
-import os
+from ai.rag import answer_with_rag
+from db.queries import save_chat
+from vector_store.ingest import add_documents
+from db.base import Base, engine
 
-load_dotenv()
+# Create tables if not exists
+Base.metadata.create_all(bind=engine)
+
 app = Flask(__name__)
-
-openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
-if not openrouter_api_key:
-    raise ValueError("Missing OPENROUTER_API_KEY in .env")
-
-llm = ChatOpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=openrouter_api_key,
-    model="google/gemma-3-27b-it:free",
-    temperature=0.7
-)
-
-
-prompt = ChatPromptTemplate.from_template(
-    "You are a helpful assistant. Answer: {question}")
 
 
 @app.route("/ask", methods=["POST"])
 def ask():
-    data = request.get_json()
-    question = data.get("question", "")
+    question = request.json.get("question", "").strip()
     if not question:
         return jsonify({"error": "No question provided"}), 400
 
-    chain = prompt | llm
-    result = chain.invoke({"question": question})
+    answer = answer_with_rag(question)
+    save_chat(question, answer)
+    return jsonify({"answer": answer})
 
-    return jsonify({"answer": result.content})
+
+@app.route("/ingest", methods=["POST"])
+def ingest():
+    texts = request.json.get("texts", [])
+    if not texts:
+        return jsonify({"error": "No texts provided"}), 400
+    count = add_documents(texts)
+    return jsonify({"message": f"Added {count} chunks"})
 
 
 if __name__ == "__main__":
