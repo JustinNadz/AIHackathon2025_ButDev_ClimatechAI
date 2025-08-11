@@ -10,8 +10,9 @@ embeddings = OpenAIEmbeddings(
 )
 
 
-def get_vectorstore():
+def get_vectorstore(name):
     chroma = Chroma(
+        collection_name=name,
         persist_directory=CHROMA_DB_DIR,
         embedding_function=embeddings,
     )
