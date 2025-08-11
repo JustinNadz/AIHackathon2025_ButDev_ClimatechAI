@@ -6,7 +6,7 @@ Database initialization script for PostgreSQL with PostGIS
 from db.setup import setup_database, verify_setup
 from db.base import SessionLocal
 from db.queries import (
-    add_flood_data, add_earthquake_data
+    add_flood_data, add_earthquake_data, add_landslide_data
 )
 from datetime import datetime, timedelta
 
@@ -24,9 +24,7 @@ def create_sample_data():
         add_flood_data(
             db=db,
             geometry_wkt=flood_multipolygon,
-            risk_level=2.0,
-            area_name="Sample Flood Zone",
-            source="sample_data"
+            risk_level=2.0
         )
         
         # Sample earthquake data
@@ -42,7 +40,29 @@ def create_sample_data():
             source="sample_data"
         )
         
-        # TODO: add the sample data for everything else later
+        # Sample landslide data
+        print("🏔️ Creating sample landslide data...")
+        landslide_polygon = "POLYGON((121.7740 12.8797, 121.7750 12.8797, 121.7750 12.8787, 121.7740 12.8787, 121.7740 12.8797))"
+        add_landslide_data(
+            db=db,
+            geometry_wkt=landslide_polygon,
+            risk_level=3.0
+        )
+        
+        # Add more sample landslide data with different risk levels
+        landslide_polygon2 = "POLYGON((121.7760 12.8797, 121.7770 12.8797, 121.7770 12.8787, 121.7760 12.8787, 121.7760 12.8797))"
+        add_landslide_data(
+            db=db,
+            geometry_wkt=landslide_polygon2,
+            risk_level=1.0
+        )
+        
+        landslide_polygon3 = "POLYGON((121.7780 12.8797, 121.7790 12.8797, 121.7790 12.8787, 121.7780 12.8787, 121.7780 12.8797))"
+        add_landslide_data(
+            db=db,
+            geometry_wkt=landslide_polygon3,
+            risk_level=2.0
+        )
         
         print("✅ Sample data created successfully for all data types!")
         
@@ -75,20 +95,18 @@ def main():
         print("🌊 Flood Data:")
         print("  - GET /api/flood-data - Get flood data")
         print("  - GET /api/flood-data/stats - Get flood statistics")
+        print("🏔️ Landslide Data:")
+        print("  - GET /api/landslide-data - Get landslide data")
+        print("  - GET /api/landslide-data/stats - Get landslide statistics")
         print("🌋 Earthquake Data:")
         print("  - GET /api/earthquake-data - Get earthquake data")
-        print("🏥 Infrastructure Data:")
-        print("  - GET /api/infrastructure-data - Get infrastructure data")
-        print("🏠 Evacuation Centers:")
-        print("  - GET /api/evacuation-centers - Get evacuation centers")
-        print("🗺️ Combined Data:")
-        print("  - GET /api/all-data - Get all data types")
         print("🔍 Debug:")
         print("  - GET /api/debug/flood-data - Debug flood data")
         print("\n📋 Next steps:")
-        print("1. Run 'python run_ingestions.py <file_path>' to ingest your flood data")
-        print("2. Run 'python app.py' to start the Flask application")
-        print("3. Visit http://localhost:5000 to see the map")
+        print("1. Run 'python run_ingestions.py flood <file_path>' to ingest flood data")
+        print("2. Run 'python run_ingestions.py landslide <file_path>' to ingest landslide data")
+        print("3. Run 'python app.py' to start the Flask application")
+        print("4. Visit http://localhost:5000 to see the map")
         
     except Exception as e:
         print(f"❌ Initialization failed: {e}")
