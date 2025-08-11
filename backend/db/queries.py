@@ -1,9 +1,17 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from .models import FloodData, ChatHistory
+from .models import (
+    FloodData, ChatHistory, EarthquakeData, LandslideData, 
+    WeatherData, InfrastructureData, EvacuationCenterData
+)
 from shapely.geometry import shape
 import json
+from datetime import datetime
 
+
+# ============================================================================
+# FLOOD DATA QUERIES
+# ============================================================================
 
 def add_flood_data(db: Session, geometry_wkt: str, risk_level: float):
     """Add flood data to the database"""
@@ -38,6 +46,125 @@ def get_flood_data_within_bounds(db: Session, bounds_wkt: str):
     return result.fetchall()
 
 
+def get_high_risk_flood_areas(db: Session, risk_threshold: float = 2.0):
+    """Get areas with high flood risk"""
+    return db.query(FloodData).filter(FloodData.risk_level >= risk_threshold).all()
+
+
+# ============================================================================
+# EARTHQUAKE DATA QUERIES
+# ============================================================================
+
+def add_earthquake_data(db: Session, geometry_wkt: str, magnitude: float, depth: float = None,
+                       event_time: datetime = None, location_name: str = None, 
+                       source: str = None, metadata: dict = None):
+    """Add earthquake data to the database"""
+    earthquake_data = EarthquakeData(
+        geometry=geometry_wkt,
+        magnitude=magnitude,
+        depth=depth,
+        event_time=event_time,
+        location_name=location_name,
+        source=source,
+        metadata=metadata
+    )
+    db.add(earthquake_data)
+    db.commit()
+    db.refresh(earthquake_data)
+    return earthquake_data
+
+
+def get_earthquakes_by_magnitude(db: Session, min_magnitude: float = None, max_magnitude: float = None):
+    """Get earthquakes filtered by magnitude"""
+    query = db.query(EarthquakeData)
+    
+    if min_magnitude is not None:
+        query = query.filter(EarthquakeData.magnitude >= min_magnitude)
+    if max_magnitude is not None:
+        query = query.filter(EarthquakeData.magnitude <= max_magnitude)
+    
+    return query.order_by(EarthquakeData.event_time.desc()).all()
+
+
+def get_recent_earthquakes(db: Session, hours: int = 24):
+    """Get earthquakes from the last N hours"""
+    from datetime import timedelta
+    cutoff_time = datetime.now() - timedelta(hours=hours)
+    return db.query(EarthquakeData).filter(
+        EarthquakeData.event_time >= cutoff_time
+    ).order_by(EarthquakeData.event_time.desc()).all()
+
+
+# ============================================================================
+# LANDSLIDE DATA QUERIES
+# ============================================================================
+
+def add_landslide_data(db: Session, geometry_wkt: str, risk_level: float):
+    """Add landslide data to the database"""
+    landslide_data = LandslideData(
+        geometry=geometry_wkt,
+        risk_level=risk_level,
+    )
+    db.add(landslide_data)
+    db.commit()
+    db.refresh(landslide_data)
+    return landslide_data
+
+
+def get_landslide_data_by_risk(db: Session, min_risk: float = None, max_risk: float = None):
+    """Get landslide data filtered by risk level"""
+    query = db.query(LandslideData)
+    
+    if min_risk is not None:
+        query = query.filter(LandslideData.risk_level >= min_risk)
+    if max_risk is not None:
+        query = query.filter(LandslideData.risk_level <= max_risk)
+    
+    return query.all()
+
+
+# ============================================================================
+# WEATHER DATA QUERIES
+# ============================================================================
+
+# TODO: this is placeholder, weather doesn't have geometry
+def add_weather_data(db: Session, geometry_wkt: str, temperature: float = None, humidity: float = None,
+                    rainfall: float = None, wind_speed: float = None, wind_direction: float = None,
+                    pressure: float = None, station_name: str = None, recorded_at: datetime = None,
+                    source: str = None, metadata: dict = None):
+    """Add weather data to the database"""
+    weather_data = WeatherData(
+        geometry=geometry_wkt,
+        temperature=temperature,
+        humidity=humidity,
+        rainfall=rainfall,
+        wind_speed=wind_speed,
+        wind_direction=wind_direction,
+        pressure=pressure,
+        station_name=station_name,
+        recorded_at=recorded_at,
+        source=source,
+        metadata=metadata
+    )
+    db.add(weather_data)
+    db.commit()
+    db.refresh(weather_data)
+    return weather_data
+
+
+def get_recent_weather_data(db: Session, hours: int = 1):
+    """Get weather data from the last N hours"""
+    from datetime import timedelta
+    cutoff_time = datetime.now() - timedelta(hours=hours)
+    return db.query(WeatherData).filter(
+        WeatherData.recorded_at >= cutoff_time
+    ).order_by(WeatherData.recorded_at.desc()).all()
+
+
+# ============================================================================
+# CHAT HISTORY QUERIES
+# ============================================================================
+
 def add_chat_history(db: Session, question: str, answer: str):
     """Add chat history to the database"""
     chat_history = ChatHistory(question=question, answer=answer)
@@ -49,4 +176,18 @@ def add_chat_history(db: Session, question: str, answer: str):
 
 def get_chat_history(db: Session, limit: int = 10):
     """Get recent chat history"""
-    return db.query(ChatHistory).order_by(ChatHistory.id.desc()).limit(limit).all()
+    return db.query(ChatHistory).order_by(ChatHistory.created_at.desc()).limit(limit).all()
+
+
+# ============================================================================
+# LEGACY FUNCTIONS FOR BACKWARD COMPATIBILITY
+# ============================================================================
+
+def save_chat(question: str, answer: str):
+    """Legacy function for saving chat - uses SessionLocal"""
+    from .base import SessionLocal
+    db = SessionLocal()
+    try:
+        return add_chat_history(db, question, answer)
+    finally:
+        db.close()
