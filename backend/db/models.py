@@ -20,7 +20,6 @@ class EarthquakeData(Base):
     event_time = Column(DateTime(timezone=True), nullable=True)
     location_name = Column(String(255), nullable=True)
     source = Column(String(100), nullable=True)  # e.g., 'PHIVOLCS', 'USGS'
-    metadata = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -44,5 +43,4 @@ class WeatherData(Base): # TODO: this is placeholder, weather doesn't have geome
     station_name = Column(String(255), nullable=True)
     recorded_at = Column(DateTime(timezone=True), nullable=True)
     source = Column(String(100), nullable=True)  # e.g., 'PAGASA', 'weather_station'
-    metadata = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
