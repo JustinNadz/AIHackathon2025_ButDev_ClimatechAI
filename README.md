@@ -1,7 +1,7 @@
-# ButDev-AI-hackathon
-2526-ai-hackathon repo
-asd
+# project overview and objectives
 
+# Problem statement and AI based solution
 
+# AI used
 
-yow we gonne win this 
+TODO: fill this up later
