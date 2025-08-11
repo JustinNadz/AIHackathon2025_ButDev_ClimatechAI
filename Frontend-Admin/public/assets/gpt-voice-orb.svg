@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="55%" r="60%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="45%" stop-color="#e7f6ff" stop-opacity="0.85"/>
+      <stop offset="90%" stop-color="#bde7ff" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#bde7ff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#e7f6ff"/>
+      <stop offset="65%" stop-color="#c9ecff"/>
+      <stop offset="100%" stop-color="#0b78ff"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+    <filter id="mist">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="2"/>
+      <feColorMatrix type="saturate" values="0"/>
+      <feComponentTransfer>
+        <feFuncA type="table" tableValues="0 0 0 .1 .25 .4 .6 .8 1"/>
+      </feComponentTransfer>
+      <feGaussianBlur stdDeviation="24"/>
+    </filter>
+  </defs>
+
+  <!-- base sky fill -->
+  <rect width="1024" height="1024" fill="url(#sky)"/>
+
+  <!-- soft clouds band -->
+  <g filter="url(#mist)">
+    <path d="M0,340 C220,250 420,260 560,340 C700,420 860,430 1024,350 L1024,540 L0,540 Z" fill="#ffffff" opacity="0.9"/>
+  </g>
+
+  <!-- deep blue sea band -->
+  <path d="M0,620 C240,560 560,600 1024,560 L1024,1024 L0,1024 Z" fill="#0b78ff" filter="url(#soft)"/>
+
+  <!-- top glow -->
+  <rect width="1024" height="1024" fill="url(#glow)"/>
+</svg>
+
+
