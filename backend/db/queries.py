@@ -34,6 +34,7 @@ def get_flood_data_by_risk(db: Session, min_risk: float = None, max_risk: float 
     
     return query.all()
 
+
 def get_flood_data_within_bounds(db: Session, bounds_wkt: str):
     """Get flood data within specified bounds using PostGIS ST_Intersects"""
     query = text("""
@@ -125,14 +126,15 @@ def get_landslide_data_by_risk(db: Session, min_risk: float = None, max_risk: fl
 # WEATHER DATA QUERIES
 # ============================================================================
 
-# TODO: this is placeholder, weather doesn't have geometry
-def add_weather_data(db: Session, geometry_wkt: str, temperature: float = None, humidity: float = None,
+
+def add_weather_data(db: Session, longitude: float, latitude: float, temperature: float = None, humidity: float = None,
                     rainfall: float = None, wind_speed: float = None, wind_direction: float = None,
                     pressure: float = None, station_name: str = None, recorded_at: datetime = None,
                     source: str = None, metadata: dict = None):
     """Add weather data to the database"""
     weather_data = WeatherData(
-        geometry=geometry_wkt,
+        longitude=longitude,
+        latitude=latitude,
         temperature=temperature,
         humidity=humidity,
         rainfall=rainfall,
