@@ -13,5 +13,5 @@ class ChatHistory(Base):
 class FloodData(Base):
     __tablename__ = "flood_data"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    geometry = Column(Geometry('POLYGON', srid=4326), nullable=False)
-    risk_level = Column(Float, nullable=False)  # 0-2 scale for flood risk
+    geometry = Column(Geometry('MULTIPOLYGON', srid=4326), nullable=False)
+    risk_level = Column(Float, nullable=False)
