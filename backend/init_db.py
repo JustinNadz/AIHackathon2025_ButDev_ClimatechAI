@@ -18,14 +18,14 @@ def create_sample_data():
     db = SessionLocal()
     
     try:
-        # Sample polygon (simple rectangle)
-        polygon_wkt = "POLYGON((-74.006 40.712, -74.006 40.722, -73.996 40.722, -73.996 40.712, -74.006 40.712))"
+        # Sample MULTIPOLYGON (matches your data structure)
+        multipolygon_wkt = "MULTIPOLYGON (((125.56724 8.69465, 125.56751 8.69465, 125.56751 8.69447, 125.56724 8.69447, 125.56724 8.69465)))"
         
-        # Add sample data
+        # Add sample data with 1-3 risk scale
         add_flood_data(
             db=db,
-            geometry_wkt=polygon_wkt,
-            risk_level=1.5
+            geometry_wkt=multipolygon_wkt,
+            risk_level=2.0  # Using 1-3 scale like your data
         )
         
         print("✅ Sample data created successfully!")
