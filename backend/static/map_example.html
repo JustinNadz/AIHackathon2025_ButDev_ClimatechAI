@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Flood Risk Map</title>
+    <style>
+        #map {
+            height: 500px;
+            width: 100%;
+        }
+        .controls {
+            margin: 20px 0;
+            padding: 10px;
+            background: #f5f5f5;
+        }
+        .risk-low { background-color: #90EE90; }
+        .risk-medium { background-color: #FFD700; }
+        .risk-high { background-color: #FF6B6B; }
+        .error {
+            color: red;
+            background: #ffe6e6;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success {
+            color: green;
+            background: #e6ffe6;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Flood Risk Map</h1>
+    
+    <div class="controls">
+        <label>Min Risk: <input type="number" id="minRisk" min="1" max="3" step="0.1" value="1"></label>
+        <label>Max Risk: <input type="number" id="maxRisk" min="1" max="3" step="0.1" value="3"></label>
+        <button onclick="loadFloodData()">Load Flood Data</button>
+        <button onclick="loadStats()">Load Statistics</button>
+        <button onclick="clearMap()">Clear Map</button>
+    </div>
+    
+    <div id="status"></div>
+    <div id="map"></div>
+    <div id="stats"></div>
+
+    <script>
+        let map;
+        let floodLayer;
+
+        function initMap() {
+            console.log('Initializing map...');
+            
+            // Initialize map centered on Philippines
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: 12.8797, lng: 121.7740 },
+                zoom: 6
+            });
+            
+            // Create a layer for flood data
+            floodLayer = new google.maps.Data();
+            floodLayer.setMap(map);
+            
+            // Set up styling for the entire layer
+            floodLayer.setStyle({
+                property: 'risk_category',
+                value: 'low',
+                style: {
+                    fillColor: '#90EE90',
+                    fillOpacity: 0.7,
+                    strokeWeight: 2,
+                    strokeColor: '#000000'
+                }
+            });
+            
+            floodLayer.setStyle({
+                property: 'risk_category',
+                value: 'medium',
+                style: {
+                    fillColor: '#FFD700',
+                    fillOpacity: 0.7,
+                    strokeWeight: 2,
+                    strokeColor: '#000000'
+                }
+            });
+            
+            floodLayer.setStyle({
+                property: 'risk_category',
+                value: 'high',
+                style: {
+                    fillColor: '#FF6B6B',
+                    fillOpacity: 0.7,
+                    strokeWeight: 2,
+                    strokeColor: '#000000'
+                }
+            });
+            
+            console.log('Map initialized successfully');
+            showStatus('Map loaded successfully. Click "Load Flood Data" to see flood areas.', 'success');
+        }
+
+        async function loadFloodData() {
+            const minRisk = document.getElementById('minRisk').value;
+            const maxRisk = document.getElementById('maxRisk').value;
+            
+            showStatus('Loading flood data...', 'info');
+            
+            try {
+                console.log(`Fetching flood data with risk range: ${minRisk}-${maxRisk}`);
+                const response = await fetch(`/api/flood-data?min_risk=${minRisk}&max_risk=${maxRisk}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Received data:', data);
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                if (!data.features || data.features.length === 0) {
+                    showStatus('No flood data found for the specified risk range.', 'warning');
+                    return;
+                }
+                
+                // Clear existing data
+                clearMap();
+                
+                // Add new data
+                floodLayer.addGeoJson(data);
+                
+                console.log(`Loaded ${data.total} flood areas`);
+                showStatus(`Successfully loaded ${data.total} flood areas`, 'success');
+                
+            } catch (error) {
+                console.error('Error loading flood data:', error);
+                showStatus(`Error loading flood data: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadStats() {
+            showStatus('Loading statistics...', 'info');
+            
+            try {
+                const response = await fetch('/api/flood-data/stats');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                const statsDiv = document.getElementById('stats');
+                statsDiv.innerHTML = `
+                    <h3>Flood Data Statistics</h3>
+                    <p>Total flood areas: ${data.total_flood_areas}</p>
+                    <p>Risk range: ${data.risk_statistics.min_risk} - ${data.risk_statistics.max_risk}</p>
+                    <p>Average risk: ${data.risk_statistics.avg_risk.toFixed(2)}</p>
+                    <h4>Risk Distribution:</h4>
+                    <ul>
+                        ${data.risk_distribution.map(d => 
+                            `<li>Risk ${d.risk_level}: ${d.count} areas</li>`
+                        ).join('')}
+                    </ul>
+                `;
+                
+                showStatus('Statistics loaded successfully', 'success');
+                
+            } catch (error) {
+                console.error('Error loading stats:', error);
+                showStatus(`Error loading statistics: ${error.message}`, 'error');
+            }
+        }
+
+        function clearMap() {
+            if (floodLayer) {
+                floodLayer.forEach(feature => floodLayer.remove(feature));
+            }
+            showStatus('Map cleared', 'info');
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="${type}">${message}</div>`;
+            console.log(`Status: ${message}`);
+        }
+
+        // Load Google Maps API
+        function loadGoogleMapsAPI() {
+            console.log('Loading Google Maps API...');
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyCRNZQqOWD_OVZ0Ie2BjMB0a3dngiIbQUk&callback=initMap`;
+            script.async = true;
+            script.defer = true;
+            script.onerror = () => {
+                showStatus('Failed to load Google Maps API', 'error');
+            };
+            document.head.appendChild(script);
+        }
+
+        // Initialize when page loads
+        window.onload = loadGoogleMapsAPI;
+    </script>
+</body>
+</html>
