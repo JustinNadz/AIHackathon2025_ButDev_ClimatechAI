@@ -1,6 +1,6 @@
 from .llm import llm
 from .prompts import RAG_PROMPT
-from vector_store.store import get_vectorstore
+from vectordb.store import get_vectorstore
 from db.queries import query_structured_data
 
 

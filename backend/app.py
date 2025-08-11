@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from ai.rag import answer_with_rag
 from db.queries import save_chat
-from vector_store.ingest import add_documents
+from vectordb.ingest import add_documents
 from db.base import Base, engine
 
 # Create tables if not exists
