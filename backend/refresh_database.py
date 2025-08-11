@@ -6,7 +6,7 @@ from db.base import engine, Base
 from db.setup import setup_database
 from db.base import SessionLocal
 from db.queries import (
-    add_flood_data, add_earthquake_data, add_landslide_data
+    add_flood_data, add_earthquake_data, add_landslide_data, add_weather_data
 )
 from sqlalchemy import text
 from datetime import datetime, timedelta
