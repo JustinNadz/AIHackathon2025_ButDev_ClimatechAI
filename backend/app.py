@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, send_from_directory
 from db.queries import (
     get_flood_data_by_risk,
+    get_landslide_data_by_risk
 )
 from vectordb.ingest import add_documents
 from db.setup import setup_database
@@ -13,6 +14,22 @@ import traceback
 setup_database()
 
 app = Flask(__name__, static_folder='static')
+
+
+@app.route("/")
+def index():
+    """Serve the map example"""
+    return send_from_directory('static', 'map_example.html')
+
+
+@app.route("/ingest", methods=["POST"])
+def ingest():
+    texts = request.json.get("texts", [])
+    if not texts:
+        return jsonify({"error": "No texts provided"}), 400
+    count = add_documents(texts)
+    return jsonify({"message": f"Added {count} chunks"})
+
 
 # ============================================================================
 # FLOOD DATA ENDPOINTS
@@ -71,8 +88,6 @@ def get_flood_data():
                         "id": data.id,
                         "risk_level": float(data.risk_level),
                         "risk_category": get_risk_category(data.risk_level),
-                        "area_name": data.area_name,
-                        "source": data.source,
                         "data_type": "flood"
                     }
                 }
@@ -164,6 +179,162 @@ def get_flood_stats():
         
     except Exception as e:
         print(f"❌ Error in get_flood_stats: {e}")
+        print(f"📋 Traceback: {traceback.format_exc()}")
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+    
+    finally:
+        if db:
+            db.close()
+
+
+# ============================================================================
+# LANDSLIDE DATA ENDPOINTS
+# ============================================================================
+
+@app.route("/api/landslide-data", methods=["GET"])
+def get_landslide_data():
+    """Get all landslide data for Google Maps"""
+    db = None
+    try:
+        print("🏔️ Starting landslide data request...")
+        db = SessionLocal()
+        
+        # Get query parameters
+        min_risk = request.args.get('min_risk', type=float)
+        max_risk = request.args.get('max_risk', type=float)
+        limit = request.args.get('limit', 1000, type=int)
+        
+        print(f"📊 Query params: min_risk={min_risk}, max_risk={max_risk}, limit={limit}")
+        
+        # Query landslide data
+        print("🗄️ Querying landslide data from database...")
+        landslide_data = get_landslide_data_by_risk(db, min_risk=min_risk, max_risk=max_risk)
+        print(f"✅ Found {len(landslide_data)} landslide data records")
+        
+        if not landslide_data:
+            return jsonify({
+                "type": "FeatureCollection",
+                "features": [],
+                "total": 0,
+                "message": "No landslide data found for the specified risk range."
+            })
+        
+        # Convert to GeoJSON format for Google Maps
+        features = []
+        for i, data in enumerate(landslide_data[:limit]):
+            try:
+                print(f"🔄 Processing landslide record {i+1}/{min(len(landslide_data), limit)}")
+                
+                # Convert WKT to GeoJSON coordinates using engine connection
+                with engine.connect() as conn:
+                    result = conn.execute(text(f"SELECT ST_AsGeoJSON(geometry) FROM landslide_data WHERE id = {data.id}"))
+                    geojson_result = result.fetchone()
+                    
+                    if geojson_result is None or geojson_result[0] is None:
+                        print(f"⚠️ No geometry found for landslide record {data.id}")
+                        continue
+                    
+                    geojson = geojson_result[0]
+                    geometry = json.loads(geojson)
+                
+                feature = {
+                    "type": "Feature",
+                    "geometry": geometry,
+                    "properties": {
+                        "id": data.id,
+                        "risk_level": float(data.risk_level),
+                        "risk_category": get_risk_category(data.risk_level),
+                        "data_type": "landslide"
+                    }
+                }
+                features.append(feature)
+                
+            except Exception as e:
+                print(f"❌ Error processing landslide record {data.id}: {e}")
+                continue
+        
+        print(f"✅ Successfully processed {len(features)} landslide features")
+        
+        geojson_response = {
+            "type": "FeatureCollection",
+            "features": features,
+            "total": len(features)
+        }
+        
+        return jsonify(geojson_response)
+        
+    except Exception as e:
+        print(f"❌ Error in get_landslide_data: {e}")
+        print(f"📋 Traceback: {traceback.format_exc()}")
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+    
+    finally:
+        if db:
+            db.close()
+
+
+@app.route("/api/landslide-data/stats", methods=["GET"])
+def get_landslide_stats():
+    """Get landslide data statistics for dashboard"""
+    db = None
+    try:
+        print("📊 Getting landslide data statistics...")
+        db = SessionLocal()
+        
+        with engine.connect() as conn:
+            # Get total count
+            result = conn.execute(text("SELECT COUNT(*) FROM landslide_data"))
+            total_count = result.fetchone()[0]
+            print(f"📈 Total landslide areas: {total_count}")
+            
+            if total_count == 0:
+                return jsonify({
+                    "total_landslide_areas": 0,
+                    "risk_statistics": {
+                        "min_risk": 0,
+                        "max_risk": 0,
+                        "avg_risk": 0
+                    },
+                    "risk_distribution": []
+                })
+            
+            # Get risk level statistics
+            result = conn.execute(text("""
+                SELECT 
+                    MIN(risk_level) as min_risk,
+                    MAX(risk_level) as max_risk,
+                    AVG(risk_level) as avg_risk,
+                    COUNT(*) as total
+                FROM landslide_data
+            """))
+            stats = result.fetchone()
+            
+            # Get risk level distribution
+            result = conn.execute(text("""
+                SELECT 
+                    risk_level,
+                    COUNT(*) as count
+                FROM landslide_data 
+                GROUP BY risk_level 
+                ORDER BY risk_level
+            """))
+            distribution = [{"risk_level": float(row[0]), "count": row[1]} for row in result.fetchall()]
+        
+        stats_response = {
+            "total_landslide_areas": total_count,
+            "risk_statistics": {
+                "min_risk": float(stats[0]) if stats[0] else 0,
+                "max_risk": float(stats[1]) if stats[1] else 0,
+                "avg_risk": float(stats[2]) if stats[2] else 0
+            },
+            "risk_distribution": distribution
+        }
+        
+        print(f"✅ Landslide statistics calculated successfully")
+        return jsonify(stats_response)
+        
+    except Exception as e:
+        print(f"❌ Error in get_landslide_stats: {e}")
         print(f"📋 Traceback: {traceback.format_exc()}")
         return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
     
