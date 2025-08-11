@@ -170,7 +170,33 @@ def create_sample_data():
             risk_level=2.0
         )
         
-        print("✅ Sample data created successfully!")
+        # Sample weather data
+        print("🌤️ Creating sample weather data...")
+        weather_locations = [
+            (14.5995, 120.9842, "Manila Weather Station"),
+            (10.3157, 123.8854, "Cebu Weather Station"),
+            (7.1907, 125.4553, "Davao Weather Station"),
+            (16.4023, 120.5960, "Baguio Weather Station"),
+            (15.4700, 120.9600, "Tarlac Weather Station"),
+        ]
+        
+        for lat, lng, station_name in weather_locations:
+            weather_point = f"POINT({lng} {lat})"
+            add_weather_data(
+                db=db,
+                geometry_wkt=weather_point,
+                temperature=25.0 + (lat - 12) * 2,  # Temperature varies with latitude
+                humidity=75.0,
+                rainfall=2.5,
+                wind_speed=15.0,
+                wind_direction=180.0,
+                pressure=1013.0,
+                station_name=station_name,
+                recorded_at=datetime.now(),
+                source="sample_data"
+            )
+        
+        print("✅ Sample data created successfully for all data types!")
         
     except Exception as e:
         print(f"❌ Error creating sample data: {e}")
