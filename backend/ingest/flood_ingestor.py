@@ -1,9 +1,7 @@
 import geopandas as gpd
 import pandas as pd
-from shapely.geometry import shape
 from db.base import SessionLocal
 from db.queries import add_flood_data
-import json
 
 
 class FloodIngestor:
