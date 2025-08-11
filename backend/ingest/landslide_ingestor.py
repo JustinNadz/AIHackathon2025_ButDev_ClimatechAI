@@ -12,26 +12,28 @@ class LandslideIngestor:
         if hasattr(self, 'db'):
             self.db.close()
 
-    def ingest_shp(self, file_path: str, class_column: str = None, default_class: float = 0.0):
+    def ingest_shp(self, file_path: str, risk_column: str = "HAZ", default_risk: float = 2.0):
         """
-        Ingest shapefile data into PostgreSQL with PostGIS
+        Ingest landslide shapefile data into PostgreSQL with PostGIS
         
         Args:
             file_path: Path to the shapefile
-            class_column: Column name containing classification values (1-3 scale, default: "HAZ")
-            default_class: Default class value if class_column is not provided (default: 2.0)
+            risk_column: Column name containing risk values (1-3 scale, default: "HAZ")
+            default_risk: Default risk value if risk_column is not provided (default: 2.0)
         """
         try:
             gdf = gpd.read_file(file_path)
             
+            print(f"🌊 Landslide Data Ingestion")
+            print(f"=" * 40)
             print(f"Found {len(gdf)} features in {file_path}")
             print(f"Columns available: {list(gdf.columns)}")
             
             # Validate risk column exists
-            if class_column not in gdf.columns:
-                print(f"⚠️ Warning: Risk column '{class_column}' not found in shapefile")
+            if risk_column not in gdf.columns:
+                print(f"⚠️ Warning: Risk column '{risk_column}' not found in shapefile")
                 print(f"Available columns: {list(gdf.columns)}")
-                print(f"Using default risk value: {default_class}")
+                print(f"Using default risk value: {default_risk}")
             
             # Check geometry type
             geometry_types = gdf.geometry.geom_type.unique()
@@ -45,23 +47,24 @@ class LandslideIngestor:
                     # Extract geometry as WKT
                     geometry_wkt = row.geometry.wkt
                     
-                    # Extract risk level
-                    if class_column in gdf.columns:
-                        class_value = row[class_column]
-                        if pd.isna(class_value):
-                            class_level = default_class
-                            print(f"⚠️ Row {idx}: Class value is NaN, using default: {default_class}")
+                    # Extract risk level from HAZ column
+                    if risk_column in gdf.columns:
+                        risk_value = row[risk_column]
+                        if pd.isna(risk_value):
+                            risk_level = default_risk
+                            print(f"⚠️ Row {idx}: Risk value is NaN, using default: {default_risk}")
                         else:
-                            class_level = float(class_value)
-                            class_level = max(1.0, min(3.0, class_level))
+                            risk_level = float(risk_value)
+                            # Ensure risk is within 1-3 range (your data scale)
+                            risk_level = max(1.0, min(3.0, risk_level))
                     else:
-                        class_level = default_class
+                        risk_level = default_risk
                     
                     # Add to database
                     add_landslide_data(
                         db=self.db,
                         geometry_wkt=geometry_wkt,
-                        risk_level=class_level,
+                        risk_level=risk_level,
                     )
                     
                     successful_ingestions += 1
@@ -74,18 +77,26 @@ class LandslideIngestor:
                     failed_ingestions += 1
                     continue
             
-            print(f"\n✅ Successfully ingested {successful_ingestions} landslide records")
+            print(f"\n✅ Successfully ingested {successful_ingestions} landslide data records")
             if failed_ingestions > 0:
                 print(f"❌ Failed to ingest {failed_ingestions} records")
             
             # Print summary statistics
-            if class_column in gdf.columns:
-                class_values = gdf[class_column].dropna()
-                if len(class_values) > 0:
-                    print(f"\n📊 Classification statistics:")
-                    print(f"  - Average class: {class_values.mean():.2f}")
-                    print(f"  - Unique values: {sorted(class_values.unique())}")
+            if risk_column in gdf.columns:
+                risk_values = gdf[risk_column].dropna()
+                if len(risk_values) > 0:
+                    print(f"\n📊 Risk level statistics:")
+                    print(f"  - Min risk: {risk_values.min()}")
+                    print(f"  - Max risk: {risk_values.max()}")
+                    print(f"  - Average risk: {risk_values.mean():.2f}")
+                    print(f"  - Unique values: {sorted(risk_values.unique())}")
+                    
+                    # Risk distribution
+                    risk_counts = risk_values.value_counts().sort_index()
+                    print(f"  - Risk distribution:")
+                    for risk_level, count in risk_counts.items():
+                        print(f"    Risk {risk_level}: {count} areas")
             
         except Exception as e:
-            print(f"❌ Error ingesting shapefile: {e}")
+            print(f"❌ Error ingesting landslide shapefile: {e}")
             raise
