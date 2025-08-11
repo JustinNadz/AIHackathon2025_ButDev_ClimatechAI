@@ -14,9 +14,10 @@ if not openrouter_api_key:
 llm = ChatOpenAI(
     base_url="https://openrouter.ai/api/v1",
     api_key=openrouter_api_key,
-    model="meta-llama/llama-3.1-8b-instruct:free",
-    temperature=0
+    model="google/gemma-3-27b-it:free",
+    temperature=0.7
 )
+
 
 prompt = ChatPromptTemplate.from_template(
     "You are a helpful assistant. Answer: {question}")
