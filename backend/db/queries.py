@@ -159,35 +159,3 @@ def get_recent_weather_data(db: Session, hours: int = 1):
     return db.query(WeatherData).filter(
         WeatherData.recorded_at >= cutoff_time
     ).order_by(WeatherData.recorded_at.desc()).all()
-
-
-# ============================================================================
-# CHAT HISTORY QUERIES
-# ============================================================================
-
-def add_chat_history(db: Session, question: str, answer: str):
-    """Add chat history to the database"""
-    chat_history = ChatHistory(question=question, answer=answer)
-    db.add(chat_history)
-    db.commit()
-    db.refresh(chat_history)
-    return chat_history
-
-
-def get_chat_history(db: Session, limit: int = 10):
-    """Get recent chat history"""
-    return db.query(ChatHistory).order_by(ChatHistory.created_at.desc()).limit(limit).all()
-
-
-# ============================================================================
-# LEGACY FUNCTIONS FOR BACKWARD COMPATIBILITY
-# ============================================================================
-
-def save_chat(question: str, answer: str):
-    """Legacy function for saving chat - uses SessionLocal"""
-    from .base import SessionLocal
-    db = SessionLocal()
-    try:
-        return add_chat_history(db, question, answer)
-    finally:
-        db.close()

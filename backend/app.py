@@ -7,29 +7,12 @@ from db.setup import setup_database
 from db.base import SessionLocal, engine
 from sqlalchemy import text
 import json
-import os
 import traceback
 
 # Setup database with PostGIS
 setup_database()
 
 app = Flask(__name__, static_folder='static')
-
-
-@app.route("/")
-def index():
-    """Serve the map example"""
-    return send_from_directory('static', 'map_example.html')
-
-
-@app.route("/ingest", methods=["POST"])
-def ingest():
-    texts = request.json.get("texts", [])
-    if not texts:
-        return jsonify({"error": "No texts provided"}), 400
-    count = add_documents(texts)
-    return jsonify({"message": f"Added {count} chunks"})
-
 
 # ============================================================================
 # FLOOD DATA ENDPOINTS
