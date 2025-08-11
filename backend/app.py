@@ -1,7 +1,8 @@
 from flask import Flask, request, jsonify, send_from_directory
 from db.queries import (
     get_flood_data_by_risk,
-    get_landslide_data_by_risk
+    get_landslide_data_by_risk,
+    get_recent_weather_data
 )
 from vectordb.ingest import add_documents
 from db.setup import setup_database
@@ -344,19 +345,187 @@ def get_landslide_stats():
 
 
 # ============================================================================
-# EARTHQUAKE DATA ENDPOINTS
-# ============================================================================
-
-@app.route("/api/earthquake-data", methods=["GET"])
-def get_earthquake_data():
-    pass
-
-
-# ============================================================================
 # WEATHER DATA ENDPOINTS
 # ============================================================================
 
 @app.route("/api/weather-data", methods=["GET"])
+def get_weather_data():
+    """Get weather data for Google Maps"""
+    db = None
+    try:
+        print("🌤️ Starting weather data request...")
+        db = SessionLocal()
+        
+        # Get query parameters
+        hours = request.args.get('hours', 1, type=int)
+        limit = request.args.get('limit', 1000, type=int)
+        station_name = request.args.get('station')
+        
+        print(f"📊 Query params: hours={hours}, limit={limit}, station={station_name}")
+        
+        # Query weather data
+        print("🗄️ Querying weather data from database...")
+        weather_data = get_recent_weather_data(db, hours=hours)
+        print(f"✅ Found {len(weather_data)} weather data records")
+        
+        if not weather_data:
+            return jsonify({
+                "type": "FeatureCollection",
+                "features": [],
+                "total": 0,
+                "message": "No weather data found for the specified time range."
+            })
+        
+        # Convert to GeoJSON format for Google Maps
+        features = []
+        for i, data in enumerate(weather_data[:limit]):
+            try:
+                print(f"🔄 Processing weather record {i+1}/{min(len(weather_data), limit)}")
+                
+                # Convert WKT to GeoJSON coordinates using engine connection
+                with engine.connect() as conn:
+                    result = conn.execute(text(f"SELECT ST_AsGeoJSON(geometry) FROM weather_data WHERE id = {data.id}"))
+                    geojson_result = result.fetchone()
+                    
+                    if geojson_result is None or geojson_result[0] is None:
+                        print(f"⚠️ No geometry found for weather record {data.id}")
+                        continue
+                    
+                    geojson = geojson_result[0]
+                    geometry = json.loads(geojson)
+                
+                feature = {
+                    "type": "Feature",
+                    "geometry": geometry,
+                    "properties": {
+                        "id": data.id,
+                        "temperature": float(data.temperature) if data.temperature else None,
+                        "humidity": float(data.humidity) if data.humidity else None,
+                        "rainfall": float(data.rainfall) if data.rainfall else None,
+                        "wind_speed": float(data.wind_speed) if data.wind_speed else None,
+                        "wind_direction": float(data.wind_direction) if data.wind_direction else None,
+                        "pressure": float(data.pressure) if data.pressure else None,
+                        "station_name": data.station_name,
+                        "recorded_at": data.recorded_at.isoformat() if data.recorded_at else None,
+                        "source": data.source,
+                        "data_type": "weather"
+                    }
+                }
+                features.append(feature)
+                
+            except Exception as e:
+                print(f"❌ Error processing weather record {data.id}: {e}")
+                continue
+        
+        print(f"✅ Successfully processed {len(features)} weather features")
+        
+        geojson_response = {
+            "type": "FeatureCollection",
+            "features": features,
+            "total": len(features)
+        }
+        
+        return jsonify(geojson_response)
+        
+    except Exception as e:
+        print(f"❌ Error in get_weather_data: {e}")
+        print(f"📋 Traceback: {traceback.format_exc()}")
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+    
+    finally:
+        if db:
+            db.close()
+
+
+@app.route("/api/weather-data/stats", methods=["GET"])
+def get_weather_stats():
+    """Get weather data statistics for dashboard"""
+    db = None
+    try:
+        print("📊 Getting weather data statistics...")
+        db = SessionLocal()
+        
+        with engine.connect() as conn:
+            # Get total count
+            result = conn.execute(text("SELECT COUNT(*) FROM weather_data"))
+            total_count = result.fetchone()[0]
+            print(f"📈 Total weather stations: {total_count}")
+            
+            if total_count == 0:
+                return jsonify({
+                    "total_weather_stations": 0,
+                    "temperature_statistics": {
+                        "min_temp": 0,
+                        "max_temp": 0,
+                        "avg_temp": 0
+                    },
+                    "rainfall_statistics": {
+                        "total_rainfall": 0,
+                        "avg_rainfall": 0
+                    }
+                })
+            
+            # Get temperature statistics
+            result = conn.execute(text("""
+                SELECT 
+                    MIN(temperature) as min_temp,
+                    MAX(temperature) as max_temp,
+                    AVG(temperature) as avg_temp
+                FROM weather_data 
+                WHERE temperature IS NOT NULL
+            """))
+            temp_stats = result.fetchone()
+            
+            # Get rainfall statistics
+            result = conn.execute(text("""
+                SELECT 
+                    SUM(rainfall) as total_rainfall,
+                    AVG(rainfall) as avg_rainfall
+                FROM weather_data 
+                WHERE rainfall IS NOT NULL
+            """))
+            rain_stats = result.fetchone()
+            
+            # Get station count
+            result = conn.execute(text("""
+                SELECT COUNT(DISTINCT station_name) as unique_stations
+                FROM weather_data 
+                WHERE station_name IS NOT NULL
+            """))
+            station_count = result.fetchone()[0]
+        
+        stats_response = {
+            "total_weather_stations": total_count,
+            "unique_stations": station_count,
+            "temperature_statistics": {
+                "min_temp": float(temp_stats[0]) if temp_stats[0] else 0,
+                "max_temp": float(temp_stats[1]) if temp_stats[1] else 0,
+                "avg_temp": float(temp_stats[2]) if temp_stats[2] else 0
+            },
+            "rainfall_statistics": {
+                "total_rainfall": float(rain_stats[0]) if rain_stats[0] else 0,
+                "avg_rainfall": float(rain_stats[1]) if rain_stats[1] else 0
+            }
+        }
+        
+        print(f"✅ Weather statistics calculated successfully")
+        return jsonify(stats_response)
+        
+    except Exception as e:
+        print(f"❌ Error in get_weather_stats: {e}")
+        print(f"📋 Traceback: {traceback.format_exc()}")
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+    
+    finally:
+        if db:
+            db.close()
+
+
+# ============================================================================
+# EARTHQUAKE DATA ENDPOINTS
+# ============================================================================
+
+@app.route("/api/earthquake-data", methods=["GET"])
 def get_earthquake_data():
     pass
 
