@@ -17,14 +17,23 @@ export default function Home() {
     setIsPanelOpen(!isPanelOpen)
   }
 
+  const openChatOnMap = () => {
+    setActiveSection("map")
+    setIsPanelOpen(true)
+  }
+
+  const goToMap = () => {
+    setActiveSection("map")
+  }
+
   const renderContent = () => {
     switch (activeSection) {
       case "learn":
-        return <LearnSection />
+        return <LearnSection onGoToMap={goToMap} onOpenChatOnMap={openChatOnMap} />
       case "weather":
         return <WeatherSection />
       case "assistant":
-        return <AIAssistantSection />
+        return <AIAssistantSection onOpenChatOnMap={openChatOnMap} />
       default:
         return (
           <div className="w-full h-full">
@@ -39,7 +48,13 @@ export default function Home() {
       <Header activeSection={activeSection} onSectionChange={setActiveSection} />
 
       {/* Main Content Area */}
-      <main className="relative h-[calc(100vh-80px)] overflow-hidden">
+      <main
+        className={`relative ${
+          activeSection === "map"
+            ? "h-[calc(100vh-80px)] overflow-hidden"
+            : "min-h-[calc(100vh-80px)] overflow-y-auto"
+        }`}
+      >
         {renderContent()}
 
         {/* Draggable Chat Panel - Only show on map section */}
@@ -50,28 +65,24 @@ export default function Home() {
         {/* Floating Action Button - Only show on map section when panel is closed */}
         {activeSection === "map" && !isPanelOpen && (
           <div className="absolute bottom-8 right-8">
-            <button
-              onClick={handleTogglePanel}
-              className="group relative bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-full p-5 shadow-2xl transition-all duration-300 hover:scale-110 hover:shadow-3xl"
-            >
-              <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                />
-              </svg>
+            <div className="relative h-16 w-16">
+              {/* Pulsing radar effect behind the button */}
+              <div className="pointer-events-none absolute -inset-5 rounded-full bg-blue-500/20 animate-ping" style={{ animationDuration: "2.5s" }}></div>
+              <div className="pointer-events-none absolute -inset-1 rounded-full bg-blue-500/20 blur-lg"></div>
 
-              {/* Pulsing ring animation */}
-              <div className="absolute inset-0 rounded-full bg-blue-600 animate-ping opacity-20"></div>
+              <button
+                onClick={handleTogglePanel}
+                className="group relative h-16 w-16 bg-white rounded-full border border-blue-100 shadow-2xl transition-all duration-300 hover:scale-110 hover:shadow-3xl flex items-center justify-center"
+              >
+                <img src="/climatech-logo.png" alt="ClimaTech Chat" className="w-12 h-12 object-contain" />
 
-              {/* Tooltip */}
-              <div className="absolute bottom-full right-0 mb-3 px-4 py-2 bg-gray-800 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-lg">
-                Open AI Assistant
-                <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800"></div>
-              </div>
-            </button>
+                {/* Tooltip */}
+                <div className="absolute bottom-full right-0 mb-3 px-4 py-2 bg-gray-800 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-lg">
+                  ClimaTech AI Assistant
+                  <div className="absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800"></div>
+                </div>
+              </button>
+            </div>
           </div>
         )}
       </main>

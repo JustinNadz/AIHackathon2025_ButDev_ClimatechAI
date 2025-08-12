@@ -145,7 +145,7 @@ export default function DraggableChatPanel({ isOpen, onToggle, selectedLocation 
               <Bot className="h-5 w-5 text-white" />
             </div>
             <div>
-              <span className="font-semibold text-white text-lg">AI Assistant</span>
+              <span className="font-semibold text-white text-lg">ClimaTech AI Assistant</span>
               <p className="text-sm text-white/80">Intelligent Location & Weather Helper</p>
             </div>
           </div>
