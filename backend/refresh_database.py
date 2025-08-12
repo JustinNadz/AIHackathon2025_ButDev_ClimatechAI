@@ -134,7 +134,7 @@ def create_sample_data():
             source="sample_data"
         )
         
-        # Add more earthquake data
+        # Add more earthquake data with different magnitudes
         earthquake_point2 = "POINT(121.7750 12.8800)"
         add_earthquake_data(
             db=db,
@@ -143,6 +143,28 @@ def create_sample_data():
             depth=8.0,
             event_time=datetime.now() - timedelta(hours=1),
             location_name="Sample Earthquake Location 2",
+            source="sample_data"
+        )
+        
+        earthquake_point3 = "POINT(121.7760 12.8810)"
+        add_earthquake_data(
+            db=db,
+            geometry_wkt=earthquake_point3,
+            magnitude=5.8,
+            depth=15.0,
+            event_time=datetime.now() - timedelta(hours=3),
+            location_name="Sample Earthquake Location 3",
+            source="sample_data"
+        )
+        
+        earthquake_point4 = "POINT(121.7770 12.8820)"
+        add_earthquake_data(
+            db=db,
+            geometry_wkt=earthquake_point4,
+            magnitude=2.1,
+            depth=5.0,
+            event_time=datetime.now() - timedelta(hours=4),
+            location_name="Sample Earthquake Location 4",
             source="sample_data"
         )
         

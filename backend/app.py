@@ -2,7 +2,9 @@ from flask import Flask, request, jsonify, send_from_directory
 from db.queries import (
     get_flood_data_by_risk,
     get_landslide_data_by_risk,
-    get_recent_weather_data
+    get_recent_weather_data,
+    get_recent_earthquakes,
+    get_earthquakes_by_magnitude
 )
 from vectordb.ingest import add_documents
 from db.setup import setup_database
@@ -345,6 +347,209 @@ def get_landslide_stats():
 
 
 # ============================================================================
+# SEISMIC DATA ENDPOINTS
+# ============================================================================
+
+@app.route("/api/seismic-data", methods=["GET"])
+def get_seismic_data():
+    """Get seismic data for Google Maps"""
+    db = None
+    try:
+        print("🌋 Starting seismic data request...")
+        db = SessionLocal()
+        
+        # Get query parameters
+        min_magnitude = request.args.get('min_magnitude', type=float)
+        max_magnitude = request.args.get('max_magnitude', type=float)
+        hours = request.args.get('hours', 24, type=int)
+        limit = request.args.get('limit', 1000, type=int)
+        
+        print(f"📊 Query params: min_magnitude={min_magnitude}, max_magnitude={max_magnitude}, hours={hours}, limit={limit}")
+        
+        # Query seismic data
+        print("🗄️ Querying seismic data from database...")
+        if min_magnitude is not None or max_magnitude is not None:
+            seismic_data = get_earthquakes_by_magnitude(db, min_magnitude=min_magnitude, max_magnitude=max_magnitude)
+        else:
+            seismic_data = get_recent_earthquakes(db, hours=hours)
+        
+        print(f"✅ Found {len(seismic_data)} seismic data records")
+        
+        if not seismic_data:
+            return jsonify({
+                "type": "FeatureCollection",
+                "features": [],
+                "total": 0,
+                "message": "No seismic data found for the specified criteria."
+            })
+        
+        # Convert to GeoJSON format for Google Maps
+        features = []
+        for i, data in enumerate(seismic_data[:limit]):
+            try:
+                print(f"🔄 Processing seismic record {i+1}/{min(len(seismic_data), limit)}")
+                
+                # Convert WKT to GeoJSON coordinates using engine connection
+                with engine.connect() as conn:
+                    result = conn.execute(text(f"SELECT ST_AsGeoJSON(geometry) FROM earthquake_data WHERE id = {data.id}"))
+                    geojson_result = result.fetchone()
+                    
+                    if geojson_result is None or geojson_result[0] is None:
+                        print(f"⚠️ No geometry found for seismic record {data.id}")
+                        continue
+                    
+                    geojson = geojson_result[0]
+                    geometry = json.loads(geojson)
+                
+                feature = {
+                    "type": "Feature",
+                    "geometry": geometry,
+                    "properties": {
+                        "id": data.id,
+                        "magnitude": float(data.magnitude),
+                        "depth": float(data.depth) if data.depth else None,
+                        "location_name": data.location_name,
+                        "event_time": data.event_time.isoformat() if data.event_time else None,
+                        "source": data.source,
+                        "magnitude_category": get_magnitude_category(data.magnitude),
+                        "data_type": "seismic"
+                    }
+                }
+                features.append(feature)
+                
+            except Exception as e:
+                print(f"❌ Error processing seismic record {data.id}: {e}")
+                continue
+        
+        print(f"✅ Successfully processed {len(features)} seismic features")
+        
+        geojson_response = {
+            "type": "FeatureCollection",
+            "features": features,
+            "total": len(features)
+        }
+        
+        return jsonify(geojson_response)
+        
+    except Exception as e:
+        print(f"❌ Error in get_seismic_data: {e}")
+        print(f"📋 Traceback: {traceback.format_exc()}")
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+    
+    finally:
+        if db:
+            db.close()
+
+
+@app.route("/api/seismic-data/stats", methods=["GET"])
+def get_seismic_stats():
+    """Get seismic data statistics for dashboard"""
+    db = None
+    try:
+        print("📊 Getting seismic data statistics...")
+        db = SessionLocal()
+        
+        with engine.connect() as conn:
+            # Get total count
+            result = conn.execute(text("SELECT COUNT(*) FROM earthquake_data"))
+            total_count = result.fetchone()[0]
+            print(f"📈 Total seismic events: {total_count}")
+            
+            if total_count == 0:
+                return jsonify({
+                    "total_seismic_events": 0,
+                    "magnitude_statistics": {
+                        "min_magnitude": 0,
+                        "max_magnitude": 0,
+                        "avg_magnitude": 0
+                    },
+                    "depth_statistics": {
+                        "min_depth": 0,
+                        "max_depth": 0,
+                        "avg_depth": 0
+                    },
+                    "magnitude_distribution": []
+                })
+            
+            # Get magnitude statistics
+            result = conn.execute(text("""
+                SELECT 
+                    MIN(magnitude) as min_magnitude,
+                    MAX(magnitude) as max_magnitude,
+                    AVG(magnitude) as avg_magnitude,
+                    COUNT(*) as total
+                FROM earthquake_data
+            """))
+            mag_stats = result.fetchone()
+            
+            # Get depth statistics
+            result = conn.execute(text("""
+                SELECT 
+                    MIN(depth) as min_depth,
+                    MAX(depth) as max_depth,
+                    AVG(depth) as avg_depth
+                FROM earthquake_data 
+                WHERE depth IS NOT NULL
+            """))
+            depth_stats = result.fetchone()
+            
+            # Get magnitude distribution
+            result = conn.execute(text("""
+                SELECT 
+                    CASE 
+                        WHEN magnitude < 2.0 THEN 'Micro'
+                        WHEN magnitude < 4.0 THEN 'Minor'
+                        WHEN magnitude < 5.0 THEN 'Light'
+                        WHEN magnitude < 6.0 THEN 'Moderate'
+                        WHEN magnitude < 7.0 THEN 'Strong'
+                        WHEN magnitude < 8.0 THEN 'Major'
+                        ELSE 'Great'
+                    END as category,
+                    COUNT(*) as count
+                FROM earthquake_data 
+                GROUP BY category
+                ORDER BY 
+                    CASE category
+                        WHEN 'Micro' THEN 1
+                        WHEN 'Minor' THEN 2
+                        WHEN 'Light' THEN 3
+                        WHEN 'Moderate' THEN 4
+                        WHEN 'Strong' THEN 5
+                        WHEN 'Major' THEN 6
+                        WHEN 'Great' THEN 7
+                    END
+            """))
+            distribution = [{"category": row[0], "count": row[1]} for row in result.fetchall()]
+        
+        stats_response = {
+            "total_seismic_events": total_count,
+            "magnitude_statistics": {
+                "min_magnitude": float(mag_stats[0]) if mag_stats[0] else 0,
+                "max_magnitude": float(mag_stats[1]) if mag_stats[1] else 0,
+                "avg_magnitude": float(mag_stats[2]) if mag_stats[2] else 0
+            },
+            "depth_statistics": {
+                "min_depth": float(depth_stats[0]) if depth_stats[0] else 0,
+                "max_depth": float(depth_stats[1]) if depth_stats[1] else 0,
+                "avg_depth": float(depth_stats[2]) if depth_stats[2] else 0
+            },
+            "magnitude_distribution": distribution
+        }
+        
+        print(f"✅ Seismic statistics calculated successfully")
+        return jsonify(stats_response)
+        
+    except Exception as e:
+        print(f"❌ Error in get_seismic_stats: {e}")
+        print(f"📋 Traceback: {traceback.format_exc()}")
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+    
+    finally:
+        if db:
+            db.close()
+
+
+# ============================================================================
 # WEATHER DATA ENDPOINTS
 # ============================================================================
 
@@ -522,15 +727,6 @@ def get_weather_stats():
 
 
 # ============================================================================
-# EARTHQUAKE DATA ENDPOINTS
-# ============================================================================
-
-@app.route("/api/earthquake-data", methods=["GET"])
-def get_earthquake_data():
-    pass
-
-
-# ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
 
@@ -544,6 +740,28 @@ def get_risk_category(risk_level):
             return "medium"
         else:
             return "high"
+    except (ValueError, TypeError):
+        return "unknown"
+
+
+def get_magnitude_category(magnitude):
+    """Convert magnitude to category for frontend styling"""
+    try:
+        magnitude = float(magnitude)
+        if magnitude < 2.0:
+            return "micro"
+        elif magnitude < 4.0:
+            return "minor"
+        elif magnitude < 5.0:
+            return "light"
+        elif magnitude < 6.0:
+            return "moderate"
+        elif magnitude < 7.0:
+            return "strong"
+        elif magnitude < 8.0:
+            return "major"
+        else:
+            return "great"
     except (ValueError, TypeError):
         return "unknown"
 

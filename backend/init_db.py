@@ -6,7 +6,7 @@ Database initialization script for PostgreSQL with PostGIS
 from db.setup import setup_database, verify_setup
 from db.base import SessionLocal
 from db.queries import (
-    add_flood_data, add_earthquake_data, add_landslide_data
+    add_flood_data, add_earthquake_data, add_landslide_data, add_weather_data
 )
 from datetime import datetime, timedelta
 
@@ -63,6 +63,29 @@ def create_sample_data():
             geometry_wkt=landslide_polygon3,
             risk_level=2.0
         )
+        
+        # Sample weather data
+        print("🌤️ Creating sample weather data...")
+        weather_locations = [
+            (12.0, 125.0, "Station A"),
+            (13.0, 126.0, "Station B"),
+            (14.0, 127.0, "Station C"),
+        ]
+        for lat, lng, station_name in weather_locations:
+            weather_point = f"POINT({lng} {lat})"
+            add_weather_data(
+                db=db,
+                geometry_wkt=weather_point,
+                temperature=25.0 + (lat - 12) * 2,  # Temperature varies with latitude
+                humidity=75.0,
+                rainfall=2.5,
+                wind_speed=15.0,
+                wind_direction=180.0,
+                pressure=1013.0,
+                station_name=station_name,
+                recorded_at=datetime.now(),
+                source="sample_data"
+            )
         
         print("✅ Sample data created successfully for all data types!")
         
