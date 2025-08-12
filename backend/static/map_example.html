@@ -707,7 +707,7 @@
         function loadGoogleMapsAPI() {
             console.log('Loading Google Maps API...');
             const script = document.createElement('script');
-            script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyCRNZQqOWD_OVZ0Ie2BjMB0a3dngiIbQUk&callback=initMap`;
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initMap`;
             script.async = true;
             script.defer = true;
             script.onerror = () => {

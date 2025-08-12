@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
+import { Send, Mic as MicIcon, Plus } from "lucide-react"
 import Image from "next/image"
 import { Mic, X, ArrowLeft } from "lucide-react"
 
@@ -16,7 +19,10 @@ export default function AssistantPage() {
   ])
   const [listening, setListening] = useState(false)
   const [interim, setInterim] = useState("")
-  const [showChat, setShowChat] = useState(false)
+  const [showChat, setShowChat] = useState(true)
+  const listRef = useRef<HTMLDivElement | null>(null)
+  const [typedMessage, setTypedMessage] = useState("")
+  const [sending, setSending] = useState(false)
   const recognitionRef = useRef<any>(null)
   const listeningRef = useRef(false)
   const orbRef = useRef<HTMLDivElement | null>(null)
@@ -65,6 +71,7 @@ export default function AssistantPage() {
   }
 
   const submit = async (text: string) => {
+    setSending(true)
     const user: Message = { role: "user", content: text }
     setMessages((prev) => [...prev, user])
 
@@ -102,6 +109,7 @@ export default function AssistantPage() {
       setMessages((prev) => [...prev, assistant])
       speak(fallback)
     }
+    setSending(false)
   }
 
   const handleAssistantAction = async (action: any) => {
@@ -186,20 +194,28 @@ export default function AssistantPage() {
     }
   }
 
+  // Auto-scroll chat to the latest message
+  useEffect(() => {
+    if (listRef.current) {
+      listRef.current.scrollTop = listRef.current.scrollHeight
+    }
+  }, [messages])
+
   return (
     <main className="min-h-screen bg-transparent p-4 md:p-8 text-white">
       <div className="mx-auto w-full max-w-4xl space-y-6">
-        <div className="flex items-center justify-between">
-          <Link href="/dashboard">
-            <Button variant="outline" className="bg-white/10 text-white border-white/20 hover:bg-white/20"><ArrowLeft className="h-4 w-4 mr-2" /> Back</Button>
-          </Link>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" className="bg-white/10 text-white border-white/20 hover:bg-white/20" onClick={() => setShowChat((v) => !v)}>
-              {showChat ? 'Hide Chat' : 'Show Chat'}
+        <div className="flex items-center justify-between mb-6">
+          <Link href="/dashboard" className="inline-block">
+            <Button 
+              variant="outline" 
+              className="bg-white/10 text-white border-white/30 hover:bg-white/20 hover:border-white/40 transition-all duration-200 px-4 py-2 rounded-lg font-medium"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" /> 
+              Back to Dashboard
             </Button>
-            {listening ? (
-              <Button onClick={stopListening} variant="destructive"><X className="h-4 w-4 mr-2" /> Stop</Button>
-            ) : null}
+          </Link>
+          <div className="text-lg font-semibold text-white/80">
+            C.L.I.M.A Assistant
           </div>
         </div>
 
@@ -258,40 +274,89 @@ export default function AssistantPage() {
           {/* Remove status text under orb to keep the UI clean */}
         </div>
 
-        {/* Conversation below orb (no typing UI) */}
-        {showChat && (
-          <div className="rounded-xl border border-white/10 bg-transparent p-4 md:p-6 shadow-sm min-h-[260px] flex flex-col">
-            <div className="flex-1 space-y-3 overflow-auto pr-1">
-              {messages.map((m, i) => (
-                <div key={i} className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${m.role === "user" ? "ml-auto bg-blue-600 text-white" : "bg-white/10 text-white"}`}>
-                  {m.content}
-                </div>
-              ))}
-            </div>
-            {/* No text composer per request */}
+        {/* Conversation area */}
+        <div className="rounded-xl border border-white/10 bg-transparent p-4 md:p-6 shadow-sm flex flex-col mt-2">
+          <div ref={listRef} className="max-h-[40vh] overflow-y-auto pr-1 space-y-3">
+            {messages.map((m, i) => (
+              <div key={i} className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm leading-relaxed ${m.role === 'user' ? 'ml-auto bg-blue-600 text-white' : 'bg-white/10 text-white'}`}>
+                {m.content}
+              </div>
+            ))}
           </div>
-        )}
+        </div>
       </div>
 
-      {/* Bottom controls like GPT Voice */}
-      <div className="fixed bottom-6 left-0 right-0 flex items-center justify-center gap-6 pointer-events-none">
-        {/* Main mic button */}
-        <button
-          onClick={() => (listening ? stopListening() : startListening())}
-          className={`pointer-events-auto h-16 w-16 rounded-full shadow-lg flex items-center justify-center transition-colors ${listening ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-          aria-label={listening ? 'Stop microphone' : 'Start microphone'}
+      {/* ChatGPT-style composer (always visible) */}
+      <div className="fixed bottom-6 left-0 right-0 flex items-center justify-center px-4 z-50">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            const t = typedMessage.trim()
+            if (!t || sending) return
+            setTypedMessage('')
+            submit(t)
+          }}
+          className="w-full max-w-4xl"
         >
-          <Mic className="h-6 w-6 text-white" />
-        </button>
-        {/* Secondary icon (close) */}
-        <button
-          onClick={() => { try { stopListening() } catch {} ; router.push('/dashboard') }}
-          className="pointer-events-auto h-16 w-16 rounded-full bg-white/10 border border-white/30 hover:bg-white/20 shadow-lg flex items-center justify-center"
-          aria-label="Close assistant"
-        >
-          <X className="h-6 w-6 text-slate-900 dark:text-white" />
-        </button>
+          <div className="flex items-center gap-3 rounded-2xl px-5 py-3 bg-white/95 backdrop-blur-sm shadow-lg ring-1 ring-black/5">
+            <button 
+              type="button" 
+              className="h-8 w-8 rounded-full text-slate-500 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors" 
+              aria-label="Add attachment"
+            >
+              <Plus className="h-5 w-5" />
+            </button>
+            <Input
+              value={typedMessage}
+              onChange={(e) => setTypedMessage(e.target.value)}
+              placeholder="Ask anything..."
+              disabled={sending}
+              className="border-0 focus-visible:ring-0 text-slate-800 placeholder:text-slate-500 bg-transparent text-base min-h-[24px] flex-1"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  const t = typedMessage.trim()
+                  if (!t || sending) return
+                  setTypedMessage('')
+                  submit(t)
+                }
+              }}
+            />
+            {sending ? (
+              <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center">
+                <div className="h-4 w-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : (
+              <>
+                {typedMessage.trim() ? (
+                  <button
+                    type="submit"
+                    className="h-8 w-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center transition-colors"
+                    aria-label="Send message"
+                  >
+                    <Send className="h-4 w-4" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    aria-label="Toggle microphone"
+                    onClick={() => (listening ? stopListening() : startListening())}
+                    className={`h-8 w-8 rounded-full flex items-center justify-center transition-colors ${
+                      listening 
+                        ? 'bg-red-100 text-red-600 hover:bg-red-200' 
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    <MicIcon className="h-4 w-4" />
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </form>
       </div>
+
+      {/* Floating mic and close buttons removed per request */}
     </main>
   )
 }
