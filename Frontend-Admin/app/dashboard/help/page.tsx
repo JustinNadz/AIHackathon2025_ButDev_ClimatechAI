@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState } from "react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -29,6 +29,8 @@ export default function HelpSupportPage() {
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [ticketSubject, setTicketSubject] = useState("")
   const [ticketMessage, setTicketMessage] = useState("")
+  const [faqVotes, setFaqVotes] = useState<Record<number, { helpful: number; notHelpful: number; userVote?: 'helpful' | 'not-helpful' }>>({})
+  const [expandedFaq, setExpandedFaq] = useState<number | null>(null)
 
   const faqCategories = [
     { id: "all", label: "All Categories" },
@@ -39,6 +41,58 @@ export default function HelpSupportPage() {
     { id: "troubleshooting", label: "Troubleshooting" },
   ]
 
+  // Initialize FAQ votes from localStorage on component mount
+  React.useEffect(() => {
+    const savedVotes = localStorage.getItem('climatech-faq-votes')
+    if (savedVotes) {
+      setFaqVotes(JSON.parse(savedVotes))
+    }
+  }, [])
+
+  // Save votes to localStorage whenever they change
+  React.useEffect(() => {
+    localStorage.setItem('climatech-faq-votes', JSON.stringify(faqVotes))
+  }, [faqVotes])
+
+  const handleVote = (faqId: number, voteType: 'helpful' | 'not-helpful') => {
+    setFaqVotes(prev => {
+      const current = prev[faqId] || { helpful: 0, notHelpful: 0 }
+      const userVote = current.userVote
+      
+      // Remove previous vote if exists
+      let newHelpful = current.helpful
+      let newNotHelpful = current.notHelpful
+      
+      if (userVote === 'helpful') newHelpful--
+      if (userVote === 'not-helpful') newNotHelpful--
+      
+      // Add new vote if different from previous
+      if (userVote !== voteType) {
+        if (voteType === 'helpful') newHelpful++
+        if (voteType === 'not-helpful') newNotHelpful++
+        
+        return {
+          ...prev,
+          [faqId]: {
+            helpful: newHelpful,
+            notHelpful: newNotHelpful,
+            userVote: voteType
+          }
+        }
+      } else {
+        // Remove vote if clicking same button
+        return {
+          ...prev,
+          [faqId]: {
+            helpful: newHelpful,
+            notHelpful: newNotHelpful,
+            userVote: undefined
+          }
+        }
+      }
+    })
+  }
+
   const faqs = [
     {
       id: 1,
@@ -46,7 +100,7 @@ export default function HelpSupportPage() {
       question: "How do I access the ClimaTech AI dashboard?",
       answer:
         "To access the dashboard, log in with your credentials provided by your agency administrator. Navigate to the dashboard section to view real-time weather data, emergency alerts, and system status.",
-      helpful: 45,
+      baseHelpful: 45,
     },
     {
       id: 2,
@@ -54,7 +108,7 @@ export default function HelpSupportPage() {
       question: "How often is weather data updated?",
       answer:
         "Weather data is updated every 10 minutes from PAGASA stations and every 5 minutes for critical parameters during severe weather events. Real-time alerts are issued immediately when thresholds are exceeded.",
-      helpful: 38,
+      baseHelpful: 38,
     },
     {
       id: 3,
@@ -62,7 +116,7 @@ export default function HelpSupportPage() {
       question: "How do I issue an emergency alert?",
       answer:
         "Navigate to Emergency Protocols > Alert Messaging. Select the alert type, affected area, and severity level. Review the message template and click 'Send Emergency Alert' to broadcast to all relevant agencies.",
-      helpful: 52,
+      baseHelpful: 52,
     },
     {
       id: 4,
@@ -70,7 +124,7 @@ export default function HelpSupportPage() {
       question: "How do I switch to backup power during emergencies?",
       answer:
         "Go to Clean Energy Management > Microgrids tab. Select the affected grid and click 'Switch to Backup'. The system will automatically activate renewable energy sources and battery storage.",
-      helpful: 29,
+      baseHelpful: 29,
     },
     {
       id: 5,
@@ -78,7 +132,7 @@ export default function HelpSupportPage() {
       question: "What should I do if the system shows offline status?",
       answer:
         "Check your internet connection first. If the problem persists, contact your system administrator or submit a support ticket. For critical emergencies, use the backup communication channels provided in your emergency manual.",
-      helpful: 41,
+      baseHelpful: 41,
     },
     {
       id: 6,
@@ -86,7 +140,7 @@ export default function HelpSupportPage() {
       question: "How do I interpret AI prediction confidence levels?",
       answer:
         "Confidence levels above 90% indicate high reliability. 80-90% is good reliability, 70-80% is moderate, and below 70% requires additional verification. Always cross-reference with multiple data sources for critical decisions.",
-      helpful: 33,
+      baseHelpful: 33,
     },
   ]
 
@@ -300,35 +354,73 @@ export default function HelpSupportPage() {
             </div>
 
             <div className="grid gap-4">
-              {filteredFaqs.map((faq) => (
-                <Card key={faq.id} className="border-blue-200">
-                  <CardContent className="p-6">
-                    <div className="space-y-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <h3 className="font-semibold text-blue-900 flex-1">{faq.question}</h3>
-                        <Badge variant="outline" className="border-blue-200 text-blue-700">
-                          {faqCategories.find((cat) => cat.id === faq.category)?.label}
-                        </Badge>
-                      </div>
-                      <p className="text-gray-700 leading-relaxed">{faq.answer}</p>
-                      <div className="flex items-center justify-between pt-2 border-t border-gray-200">
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                          <span>{faq.helpful} people found this helpful</span>
+              {filteredFaqs.map((faq) => {
+                const votes = faqVotes[faq.id] || { helpful: 0, notHelpful: 0 }
+                const totalHelpful = faq.baseHelpful + votes.helpful
+                const isExpanded = expandedFaq === faq.id
+                
+                return (
+                  <Card key={faq.id} className="border-blue-200">
+                    <CardContent className="p-6">
+                      <div className="space-y-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <button
+                            onClick={() => setExpandedFaq(isExpanded ? null : faq.id)}
+                            className="text-left flex-1 group"
+                          >
+                            <h3 className="font-semibold text-blue-900 group-hover:text-blue-700 transition-colors">
+                              {faq.question}
+                            </h3>
+                          </button>
+                          <Badge variant="outline" className="border-blue-200 text-blue-700 shrink-0">
+                            {faqCategories.find((cat) => cat.id === faq.category)?.label}
+                          </Badge>
                         </div>
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="outline" className="border-blue-200 text-blue-700 bg-transparent">
-                            Helpful
-                          </Button>
-                          <Button size="sm" variant="outline" className="border-gray-200 text-gray-700 bg-transparent">
-                            Not Helpful
-                          </Button>
-                        </div>
+                        
+                        {isExpanded && (
+                          <>
+                            <p className="text-gray-700 leading-relaxed">{faq.answer}</p>
+                            <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <CheckCircle className="w-4 h-4 text-green-600" />
+                                <span>{totalHelpful} people found this helpful</span>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant={votes.userVote === 'helpful' ? 'default' : 'outline'}
+                                  className={votes.userVote === 'helpful' 
+                                    ? 'bg-blue-600 text-white' 
+                                    : 'border-blue-200 text-blue-700 bg-transparent hover:bg-blue-50'
+                                  }
+                                  onClick={() => handleVote(faq.id, 'helpful')}
+                                >
+                                  👍 Helpful
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant={votes.userVote === 'not-helpful' ? 'destructive' : 'outline'}
+                                  className={votes.userVote === 'not-helpful'
+                                    ? 'bg-red-600 text-white'
+                                    : 'border-gray-200 text-gray-700 bg-transparent hover:bg-gray-50'
+                                  }
+                                  onClick={() => handleVote(faq.id, 'not-helpful')}
+                                >
+                                  👎 Not Helpful
+                                </Button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                        
+                        {!isExpanded && (
+                          <p className="text-gray-500 text-sm">Click to expand answer...</p>
+                        )}
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                )
+              })}
             </div>
           </TabsContent>
 
@@ -538,8 +630,8 @@ export default function HelpSupportPage() {
                     <div className="text-sm space-y-1">
                       <p>ClimaTech AI Operations Center</p>
                       <p>Department of Science and Technology</p>
-                      <p>DOST Compound, General Santos Avenue</p>
-                      <p>Bicutan, Taguig City 1631</p>
+                      <p>Magsaysay Village</p>
+                      <p>La Paz, Iloilo City, Iloilo 5000</p>
                       <p>Philippines</p>
                     </div>
                   </div>

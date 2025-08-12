@@ -29,9 +29,9 @@ export default function DashboardPage() {
           {/* Right Panel */}
           <div className="space-y-6 min-w-0 w-full">
             <EmergencyAlerts />
-            <AIForecastingPanel />
           </div>
         </div>
+            <AIForecastingPanel />
 
         {/* Live Data Feed */}
         <div className="w-full min-w-0">

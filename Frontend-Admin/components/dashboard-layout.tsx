@@ -32,6 +32,7 @@ import {
   User,
   Shield,
   ChevronDown,
+  Brain,
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
@@ -44,6 +45,7 @@ const menuItems = [
   { title: "Energy Management", icon: Zap, url: "/dashboard/energy" },
   { title: "Reports & Logs", icon: FileText, url: "/dashboard/reports" },
   { title: "System and User Management", icon: Settings, url: "/dashboard/admin" },
+  { title: "Gemma AI Testing", icon: Brain, url: "/dashboard/gemma-test" },
   { title: "Help & Support", icon: HelpCircle, url: "/dashboard/help" },
 ]
 
@@ -86,32 +88,7 @@ function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-blue-200 p-4">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton className="text-blue-700 hover:bg-blue-50">
-                  <User className="w-4 h-4" />
-                  <span>Admin User</span>
-                  <ChevronDown className="ml-auto w-4 h-4" />
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" className="w-[--radix-popper-anchor-width]">
-                <DropdownMenuItem>
-                  <span>Profile Settings</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <span>Preferences</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <span>Sign Out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
+
     </Sidebar>
   )
 }
