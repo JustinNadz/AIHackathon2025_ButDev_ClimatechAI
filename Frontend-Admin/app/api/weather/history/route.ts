@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+// Ensure this API route is never statically pre-rendered during build
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+export const runtime = 'nodejs';
 import { getWeatherHistory } from '@/lib/weather-service';
 
 export async function GET(request: NextRequest) {

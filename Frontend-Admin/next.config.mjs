@@ -10,17 +10,7 @@ const nextConfig = {
     unoptimized: true,
   },
   // Experimental features
-  experimental: {
-    // Remove the unsupported staticWorkerRequestDeduplication option
-  },
-  // Ensure we don't have 404s for static assets
-  webpack: (config, { isServer }) => {
-    // Handle static files better
-    if (!isServer) {
-      config.output.publicPath = '/_next/';
-    }
-    return config;
-  },
+  experimental: {},
   async headers() {
     return [
       {
