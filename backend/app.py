@@ -11,6 +11,7 @@ from db.queries import (
     get_nearest_recent_weather
 )
 from vectordb.ingest import add_documents
+from ai.rag import answer_with_rag
 from db.setup import setup_database
 from db.base import SessionLocal, engine
 from sqlalchemy import text
@@ -36,6 +37,76 @@ def ingest():
         return jsonify({"error": "No texts provided"}), 400
     count = add_documents(texts)
     return jsonify({"message": f"Added {count} chunks"})
+
+
+@app.route("/api/assistant/chat", methods=["POST"])
+def assistant_chat():
+    """RAG-powered assistant that combines hazards snapshot with retrieved guidance and LLM synthesis.
+
+    Request JSON:
+      { "lat": number, "lng": number, "question": string }
+    Optional:
+      hours_earthquake, eq_radius_km, weather_hours, weather_radius_km (forwarded to /api/assistant logic)
+    """
+    db = None
+    try:
+        payload = request.get_json(force=True) or {}
+        lat = payload.get("lat")
+        lng = payload.get("lng")
+        question = payload.get("question") or "What should I do to prepare right now?"
+        if lat is None or lng is None:
+            return jsonify({"error": "lat and lng are required"}), 400
+
+        # Reuse internal assistant functions to compute hazards
+        hours_earthquake = int(payload.get("hours_earthquake", 24))
+        eq_radius_km = float(payload.get("eq_radius_km", 100.0))
+        weather_hours = int(payload.get("weather_hours", 3))
+        weather_radius_km = float(payload.get("weather_radius_km", 100.0))
+
+        db = SessionLocal()
+        flood_risk = get_flood_risk_at_point(db, latitude=lat, longitude=lng)
+        landslide_risk = get_landslide_risk_at_point(db, latitude=lat, longitude=lng)
+        recent_eq = get_recent_earthquakes_nearby(db, latitude=lat, longitude=lng, hours=hours_earthquake, max_km=eq_radius_km)
+        nearest_weather = get_nearest_recent_weather(db, latitude=lat, longitude=lng, hours=weather_hours, max_km=weather_radius_km)
+
+        # Build a concise context string to inform the LLM
+        context_lines = [
+            f"Location: {lat:.5f}, {lng:.5f}",
+            f"Flood risk: {flood_risk if flood_risk is not None else 'none'}",
+            f"Landslide risk: {landslide_risk if landslide_risk is not None else 'none'}",
+            f"Recent earthquakes (last {hours_earthquake}h, {eq_radius_km}km): {recent_eq}",
+            f"Nearest weather (last {weather_hours}h, {weather_radius_km}km): {nearest_weather}",
+        ]
+        user_instruction = (
+            "Given this situation, provide concise, prioritized recommendations for safety and preparedness. "
+            "If evacuation is likely, list steps and what to bring. Use bullet points."
+        )
+        combined_question = (
+            f"User question: {question}\n\n"
+            f"{user_instruction}\n\n"
+            "Context for your answer (do not ignore):\n" + "\n".join(context_lines)
+        )
+
+        # Retrieve guidance and answer
+        advice = answer_with_rag(combined_question, collection_name="preparedness")
+
+        return jsonify({
+            "location": {"lat": lat, "lng": lng},
+            "hazards": {
+                "flood_risk": flood_risk,
+                "landslide_risk": landslide_risk,
+                "recent_earthquakes": recent_eq,
+                "nearest_weather": nearest_weather,
+            },
+            "advice": advice,
+        })
+    except Exception as e:
+        print(f"❌ Error in assistant_chat endpoint: {e}")
+        print(f"📋 Traceback: {traceback.format_exc()}")
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+    finally:
+        if db:
+            db.close()
 
 
 # ============================================================================
