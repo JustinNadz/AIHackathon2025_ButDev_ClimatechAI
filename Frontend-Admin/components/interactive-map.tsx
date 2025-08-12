@@ -666,27 +666,27 @@ export function InteractiveMap() {
   const legendItems: LegendItem[] = [
     {
       id: 'high-risk',
-      label: 'High Risk Areas',
-      color: '#ef4444',
+      label: 'High/Critical Risk',
+      color: '#FF0000',
       icon: 'triangle-alert',
       visible: true,
-      description: 'Areas with 70%+ flood probability'
+      description: 'High flood risk areas (red zones)'
     },
     {
       id: 'medium-risk',
-      label: 'Medium Risk Areas',
-      color: '#f59e0b',
+      label: 'Medium Risk',
+      color: '#FFA500',
       icon: 'triangle-alert',
       visible: true,
-      description: 'Areas with 40-70% flood probability'
+      description: 'Medium flood risk areas (orange zones)'
     },
     {
       id: 'low-risk',
-      label: 'Low Risk Areas',
-      color: '#22c55e',
+      label: 'Low Risk',
+      color: '#00FF00',
       icon: 'triangle-alert',
       visible: true,
-      description: 'Areas with <40% flood probability'
+      description: 'Low flood risk areas (green zones)'
     },
     {
       id: 'weather-stations',
@@ -891,14 +891,78 @@ export function InteractiveMap() {
         const newPolygons: google.maps.Polygon[] = []
         
         data.features.forEach((feature: any) => {
-          const coordinates = feature.geometry.coordinates[0].map((coord: number[]) => ({
-            lat: coord[1],
-            lng: coord[0]
-          }))
+          let coordinates: google.maps.LatLngLiteral[] = []
+          
+          // Handle different geometry types
+          if (feature.geometry.type === 'Polygon' && feature.geometry.coordinates && feature.geometry.coordinates[0]) {
+            coordinates = feature.geometry.coordinates[0].map((coord: number[]) => ({
+              lat: Number(coord[1]),
+              lng: Number(coord[0])
+            }))
+          } else if (feature.geometry.type === 'MultiPolygon' && feature.geometry.coordinates) {
+            // For MultiPolygon, take the first polygon
+            if (feature.geometry.coordinates[0] && feature.geometry.coordinates[0][0]) {
+              coordinates = feature.geometry.coordinates[0][0].map((coord: number[]) => ({
+                lat: Number(coord[1]),
+                lng: Number(coord[0])
+              }))
+            }
+          }
+          
+          // Skip if no valid coordinates
+          if (coordinates.length < 3) {
+            console.warn('⚠️ Skipping flood feature - insufficient coordinates:', coordinates.length)
+            return
+          }
+          
+          // Validate coordinates are finite numbers
+          const validCoordinates = coordinates.filter(coord => 
+            isFinite(coord.lat) && isFinite(coord.lng)
+          )
+          
+          if (validCoordinates.length < 3) {
+            console.warn('⚠️ Skipping flood feature - invalid coordinates')
+            return
+          }
+          
+          coordinates = validCoordinates
           
           const riskLevel = feature.properties.risk_level
-          const color = riskLevel >= 2.5 ? '#FF0000' : riskLevel >= 1.5 ? '#FFA500' : '#00FF00'
-          const opacity = riskLevel >= 2.5 ? 0.7 : riskLevel >= 1.5 ? 0.5 : 0.3
+          const riskCategory = feature.properties.risk_category || 'Unknown'
+          
+          // Color coding based on risk category
+          let color = '#00FF00' // Default green
+          let opacity = 0.3
+          
+          switch (riskCategory.toLowerCase()) {
+            case 'high':
+            case 'critical':
+              color = '#FF0000' // Red
+              opacity = 0.7
+              break
+            case 'medium':
+            case 'moderate':
+              color = '#FFA500' // Orange
+              opacity = 0.5
+              break
+            case 'low':
+            case 'minimal':
+              color = '#00FF00' // Green
+              opacity = 0.3
+              break
+            default:
+              // Fallback to numeric risk level
+              if (riskLevel >= 2.5) {
+                color = '#FF0000'
+                opacity = 0.7
+              } else if (riskLevel >= 1.5) {
+                color = '#FFA500'
+                opacity = 0.5
+              } else {
+                color = '#00FF00'
+                opacity = 0.3
+              }
+          }
           
           const polygon = new google.maps.Polygon({
             paths: coordinates,
@@ -919,12 +983,13 @@ export function InteractiveMap() {
             const infoWindow = new google.maps.InfoWindow({
               content: `
                 <div style="padding: 10px; max-width: 200px;">
-                  <h3 style="margin: 0 0 8px 0; color: #1f2937;">Flood Risk Zone</h3>
+                  <h3 style="margin: 0 0 8px 0; color: #1f2937;">🌊 Flood Risk Zone</h3>
                   <p style="margin: 4px 0; font-size: 14px;">
-                    <strong>Risk Level:</strong> ${feature.properties.risk_level.toFixed(1)}/3.0
+                    <strong>Risk Category:</strong> 
+                    <span style="color: ${color}; font-weight: bold;">${riskCategory.toUpperCase()}</span>
                   </p>
                   <p style="margin: 4px 0; font-size: 14px;">
-                    <strong>Category:</strong> ${feature.properties.risk_category}
+                    <strong>Risk Level:</strong> ${feature.properties.risk_level.toFixed(1)}/3.0
                   </p>
                   <p style="margin: 4px 0; font-size: 12px; color: #6b7280;">
                     ID: ${feature.properties.id}
@@ -971,10 +1036,41 @@ export function InteractiveMap() {
         const newZones: google.maps.Polygon[] = []
         
         data.features.forEach((feature: any) => {
-          const coordinates = feature.geometry.coordinates[0].map((coord: number[]) => ({
-            lat: coord[1],
-            lng: coord[0]
-          }))
+          let coordinates: google.maps.LatLngLiteral[] = []
+          
+          // Handle different geometry types
+          if (feature.geometry.type === 'Polygon' && feature.geometry.coordinates && feature.geometry.coordinates[0]) {
+            coordinates = feature.geometry.coordinates[0].map((coord: number[]) => ({
+              lat: Number(coord[1]),
+              lng: Number(coord[0])
+            }))
+          } else if (feature.geometry.type === 'MultiPolygon' && feature.geometry.coordinates) {
+            // For MultiPolygon, take the first polygon
+            if (feature.geometry.coordinates[0] && feature.geometry.coordinates[0][0]) {
+              coordinates = feature.geometry.coordinates[0][0].map((coord: number[]) => ({
+                lat: Number(coord[1]),
+                lng: Number(coord[0])
+              }))
+            }
+          }
+          
+          // Skip if no valid coordinates
+          if (coordinates.length < 3) {
+            console.warn('⚠️ Skipping landslide feature - insufficient coordinates:', coordinates.length)
+            return
+          }
+          
+          // Validate coordinates are finite numbers
+          const validCoordinates = coordinates.filter(coord => 
+            isFinite(coord.lat) && isFinite(coord.lng)
+          )
+          
+          if (validCoordinates.length < 3) {
+            console.warn('⚠️ Skipping landslide feature - invalid coordinates')
+            return
+          }
+          
+          coordinates = validCoordinates
           
           const riskLevel = feature.properties.risk_level
           const color = riskLevel >= 2.5 ? '#8B4513' : riskLevel >= 1.5 ? '#D2691E' : '#DEB887'
