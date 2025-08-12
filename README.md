@@ -1,20 +1,25 @@
-# ButDev AI Hackathon - Flood Risk Analysis
+# ButDev AI Hackathon - Disaster Data Management System
 
-A geospatial flood risk analysis system using PostgreSQL with PostGIS for storing and querying flood data with geometry and risk levels (0-2 scale).
+A comprehensive geospatial disaster data management system using PostgreSQL with PostGIS for storing and analyzing flood, landslide, seismic, and weather data with geometry and risk levels.
 
 ## Features
 
-- **PostgreSQL with PostGIS**: Store flood data with geospatial geometry
-- **Risk Assessment**: 1-3 scale flood risk levels
-- **Shapefile Support**: Ingest flood data from shapefiles (.shp)
+- **PostgreSQL with PostGIS**: Store multiple disaster data types with geospatial geometry
+- **Multi-Hazard Support**: Flood, landslide, seismic, and weather data
+- **Risk Assessment**: 1-3 scale risk levels for flood and landslide data
+- **Shapefile Support**: Ingest flood and landslide data from shapefiles (.shp)
+- **CSV Support**: Ingest seismic data from CSV files
+- **Weather API Integration**: Real-time weather data from Google Weather API
 - **Geospatial Queries**: Spatial analysis and filtering capabilities
-- **AI Integration**: Chat interface for querying flood data
+- **Flask API**: RESTful endpoints for data access and visualization
+- **Google Maps Integration**: Frontend map visualization
 
 ## Prerequisites
 
 1. **PostgreSQL** (version 12 or higher)
 2. **PostGIS Extension** (version 3.0 or higher)
 3. **Python 3.8+**
+4. **Google Maps API Key** (for weather data and map visualization)
 
 ## Installation
 
@@ -43,10 +48,10 @@ Download and install from [PostgreSQL official website](https://www.postgresql.o
 psql -U postgres
 
 # Create database
-CREATE DATABASE flood_db;
+CREATE DATABASE disaster_db;
 
 # Connect to the new database
-\c flood_db
+\c disaster_db
 
 # Enable PostGIS extension
 CREATE EXTENSION postgis;
@@ -67,8 +72,8 @@ pip install -r requirements.txt
 Create a `.env` file in the backend directory with your database credentials:
 
 ```env
-DATABASE_URL=postgresql://username:password@localhost:5432/flood_db
-OPENROUTER_API_KEY=your_api_key_here
+DATABASE_URL=postgresql://username:password@localhost:5432/climatech
+GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here
 CHROMA_DB_DIR=./chroma_store
 ```
 
@@ -81,44 +86,92 @@ python init_db.py
 This will:
 - Create database if it doesn't exist
 - Enable PostGIS extension
-- Create necessary tables
+- Create all necessary tables (flood_data, landslide_data, earthquake_data, weather_data)
+- Add sample data for testing
 
-## Usage
+## How to Run the Program
 
-### Ingesting Flood Data
-
-Currently supports shapefile (.shp) ingestion:
+### 1. Start the Flask Application
 
 ```bash
-python run_ingestions.py path/to/flood_zones.shp
+cd backend
+python app.py
 ```
 
-The system will:
-- Read the shapefile using GeoPandas
-- Extract geometry as WKT (Well-Known Text)
-- Extract risk levels from the "LH" column (1-3 scale)
-- Store data in PostgreSQL with PostGIS
+The application will start on `http://localhost:5000`
 
-### Customizing Risk Column
+### 2. Access the Web Interface
 
-The system is configured to use the "LH" column by default. If your data uses a different column name, edit the `risk_column` parameter in `run_ingestions.py`:
+Open your browser and navigate to:
+- **Main Map**: `http://localhost:5000` - Interactive map with all disaster data
+- **API Documentation**: See available endpoints below
 
-```python
-ingestor.ingest_shp(
-    file_path=file_path,
-    risk_column="your_risk_column_name",  # Change this to your column name
-    default_risk=2.0  # Default risk if column not found
-)
+### 3. Ingest Data
+
+#### Flood Data (Shapefile)
+```bash
+python run_ingestions.py flood data/flood_zones.shp
 ```
 
-### Database Queries
+#### Landslide Data (Shapefile)
+```bash
+python run_ingestions.py landslide data/landslide_zones.shp
+```
 
-The system provides several query functions in `db/queries.py`:
+#### Seismic Data (CSV)
+```bash
+python run_ingestions.py seismic data/earthquakes.csv
+```
 
-- `get_flood_data_by_risk()`: Filter by risk level
-- `get_flood_data_within_bounds()`: Spatial queries within bounds
-- `add_chat_history()`: Store chat interactions
-- `get_chat_history()`: Retrieve chat history
+#### Weather Data (API)
+```bash
+# Ingest weather for major Philippine cities
+python run_ingestions.py weather --mode cities
+
+# Ingest weather for a specific location
+python run_ingestions.py weather --mode single --lat 14.5995 --lng 120.9842 # preferred
+```
+
+### 4. Refresh Database (Optional)
+
+To reset the database with fresh sample data:
+```bash
+python refresh_database.py
+```
+
+## API Endpoints
+
+### Flood Data
+- `GET /api/flood-data` - Get flood data with optional risk filtering
+- `GET /api/flood-data/stats` - Get flood data statistics
+
+### Landslide Data
+- `GET /api/landslide-data` - Get landslide data with optional risk filtering
+- `GET /api/landslide-data/stats` - Get landslide data statistics
+
+### Seismic Data
+- `GET /api/seismic-data` - Get seismic data with optional magnitude filtering
+- `GET /api/seismic-data/stats` - Get seismic data statistics
+
+### Weather Data
+- `GET /api/weather-data` - Get weather data with optional time filtering
+- `GET /api/weather-data/stats` - Get weather data statistics
+
+### Example API Calls
+
+```bash
+# Get all flood data
+curl http://localhost:5000/api/flood-data
+
+# Get high-risk flood areas (risk >= 2.0)
+curl "http://localhost:5000/api/flood-data?min_risk=2.0"
+
+# Get recent seismic events (last 24 hours)
+curl "http://localhost:5000/api/seismic-data?hours=24"
+
+# Get weather data for last hour
+curl "http://localhost:5000/api/weather-data?hours=1"
+```
 
 ## Data Schema
 
@@ -127,32 +180,54 @@ The system provides several query functions in `db/queries.py`:
 - `geometry`: PostGIS geometry (MULTIPOLYGON, SRID 4326)
 - `risk_level`: Float (1-3 scale for flood risk)
 
-### ChatHistory Table
+### LandslideData Table
 - `id`: Primary key
-- `question`: User question
-- `answer`: System response
+- `geometry`: PostGIS geometry (POLYGON, SRID 4326)
+- `risk_level`: Float (1-3 scale for landslide risk)
 
-## API Endpoints
+### EarthquakeData Table
+- `id`: Primary key
+- `geometry`: PostGIS geometry (POINT, SRID 4326)
+- `magnitude`: Float (earthquake magnitude)
+- `depth`: Float (depth in kilometers)
+- `event_time`: DateTime (earthquake occurrence time)
+- `location_name`: String (location description)
+- `source`: String (data source)
+- `metadata`: JSON (additional data)
 
-The Flask application provides endpoints for:
-- `/ask` (POST): Chat interface for flood data queries
-- `/ingest` (POST): Ingest text documents for RAG
+### WeatherData Table
+- `id`: Primary key
+- `geometry`: PostGIS geometry (POINT, SRID 4326)
+- `temperature`: Float (temperature in Celsius)
+- `humidity`: Float (relative humidity percentage)
+- `rainfall`: Float (rainfall in mm/h)
+- `wind_speed`: Float (wind speed in km/h)
+- `wind_direction`: Float (wind direction in degrees)
+- `pressure`: Float (atmospheric pressure in mb)
+- `station_name`: String (weather station name)
+- `recorded_at`: DateTime (weather recording time)
+- `source`: String (data source)
 
-## Development
+## Data Ingestion Formats
 
-### Running the Application
+### Flood/Landslide Shapefile Requirements
+- **Geometry**: MULTIPOLYGON for flood, POLYGON for landslide
+- **Risk Column**: "Var" for flood, "HAZ" for landslide (configurable)
+- **Coordinate System**: WGS84 (EPSG:4326)
 
-```bash
-python app.py
-```
+### Seismic CSV Requirements
+- **Required Columns**: Date_Time_PH, Latitude, Longitude, Depth_In_Km, Magnitude, Location
+- **Date Format**: YYYY-MM-DD HH:MM:SS (configurable)
+- **Coordinates**: Decimal degrees (WGS84)
 
-### Testing Database Connection
-
-```bash
-python -c "from db.base import engine; print('Database connected successfully!')"
-```
+### Weather Data
+- **Source**: Google Weather API (requires API key)
+- **Coverage**: Philippines region
+- **Update Frequency**: Real-time via API calls
 
 ## Example Usage
+
+### Python API Usage
 
 ```python
 from db.base import SessionLocal
@@ -169,6 +244,19 @@ add_flood_data(
 # Query by risk level
 high_risk_areas = get_flood_data_by_risk(db, min_risk=2.0)
 print(f"Found {len(high_risk_areas)} high-risk areas")
+```
+
+### Command Line Usage
+
+```bash
+# Validate seismic CSV before ingestion
+python run_ingestions.py seismic data/earthquakes.csv --validate-only
+
+# Ingest with custom date format
+python run_ingestions.py seismic data/earthquakes.csv --date-format "%Y-%m-%d %H:%M:%S"
+
+# Ingest landslide data with custom risk column
+python run_ingestions.py landslide data/landslide_zones.shp --risk-column "RISK"
 ```
 
 ## Troubleshooting
@@ -190,14 +278,46 @@ print(f"Found {len(high_risk_areas)} high-risk areas")
    - Ensure data is in WGS84 (EPSG:4326) coordinate system
    - Check geometry validity
 
-4. **Shapefile ingestion errors**:
-   - Verify shapefile contains valid geometries
-   - Check that "LH" column exists in the shapefile
-   - Ensure risk values are numeric and within 1-3 range
+4. **Weather API errors**:
+   - Verify Google Maps API key is set
+   - Check API key has Weather API enabled
+   - Ensure billing is set up for Google Cloud
+
+5. **String data in seismic CSV**:
+   - The system automatically handles string-to-float conversion
+   - Check for invalid numeric values in the CSV
 
 ### Logs
 
-Check application logs for detailed error messages and debugging information.
+Check application logs for detailed error messages and debugging information. The Flask app provides verbose logging for troubleshooting.
+
+## Development
+
+### Running Tests
+
+```bash
+# Test database connection
+python -c "from db.base import engine; print('Database connected successfully!')"
+
+# Test individual components
+python weather/google_weather_api.py
+python ingest/seismic_ingestor.py sample_seismic_data.csv --validate-only
+```
+
+### File Structure
+
+```
+backend/
+├── app.py                 # Main Flask application
+├── init_db.py            # Database initialization
+├── refresh_database.py   # Database refresh utility
+├── run_ingestions.py     # Main ingestion script
+├── db/                   # Database models and queries
+├── ingest/              # Data ingestion modules
+├── weather/             # Weather API integration
+├── static/              # Frontend files
+└── requirements.txt     # Python dependencies
+```
 
 ## Contributing
 
