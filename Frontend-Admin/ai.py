@@ -2,7 +2,9 @@ import requests
 import json
 import os
 import sys
-from typing import Dict, Any
+import tempfile
+from datetime import datetime
+from typing import Dict, Any, List
 
 def read_system_prompt(mode: str = "chat") -> str:
     """
@@ -81,7 +83,23 @@ def detect_input_type_and_format(user_input: str, specified_mode: str = None) ->
                    'wind', 'temperature', 'humidity', 'disaster', 'emergency', 'evacuation',
                    'climate', 'hazard', 'risk assessment', 'environmental']
     
-    user_input_lower = user_input.lower()
+    # Check for follow-up confirmation keywords that should stay in detect mode
+    followup_keywords = ['yes', 'okay', 'sure', 'what should i do next', 'what to do next', 
+                        'next steps', 'recommendations', 'protocol', 'emergency', 'cdrrmo',
+                        'evacuation', 'flood warning', 'disaster response']
+    
+    user_input_lower = user_input.lower().strip()
+    
+    # If it's a simple confirmation (yes/okay/sure) or asking for next steps, use detect mode
+    simple_confirmations = ['yes', 'okay', 'sure', 'ok', 'yep', 'yeah']
+    if user_input_lower in simple_confirmations or any(phrase in user_input_lower for phrase in ['what should i do next', 'what to do next', 'next steps']):
+        print(f"DEBUG: Simple confirmation detected: '{user_input_lower}' -> DETECT mode", file=sys.stderr)
+        return user_input, "detect"
+    
+    # If it's a follow-up confirmation, use detect mode
+    if any(keyword in user_input_lower for keyword in followup_keywords):
+        print(f"DEBUG: Follow-up keyword detected: '{user_input_lower}' -> DETECT mode", file=sys.stderr)
+        return user_input, "detect"
     
     # If it contains multiple environmental keywords or specific data patterns, use detect mode
     env_keyword_count = sum(1 for keyword in env_keywords if keyword in user_input_lower)
@@ -91,7 +109,161 @@ def detect_input_type_and_format(user_input: str, specified_mode: str = None) ->
         return user_input, "detect"
     
     # Otherwise, use chat mode for normal conversation
+    print(f"DEBUG: No special detection -> CHAT mode for: '{user_input_lower}'", file=sys.stderr)
     return user_input, "chat"
+
+def get_chat_history_file() -> str:
+    """
+    Get the path to the temporary chat history file.
+    
+    Returns:
+        str: Path to the chat history file
+    """
+    # Use current directory instead of temp directory for reliability
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    history_file = os.path.join(current_dir, "climatech_ai_chat_history.txt")
+    
+    # Ensure the file exists
+    if not os.path.exists(history_file):
+        try:
+            with open(history_file, 'w', encoding='utf-8') as f:
+                f.write(f"# ClimatechAI Chat History - Created {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            print(f"DEBUG: Created chat history file at: {history_file}", file=sys.stderr)
+        except Exception as e:
+            print(f"ERROR: Could not create chat history file: {e}", file=sys.stderr)
+    
+    return history_file
+
+def save_chat_message(role: str, content: str, mode: str = "chat") -> None:
+    """
+    Save a chat message to the temporary history file.
+    
+    Args:
+        role (str): Either "user" or "assistant"
+        content (str): The message content
+        mode (str): The AI mode used ("chat" or "detect")
+    """
+    try:
+        history_file = get_chat_history_file()
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Create entry
+        entry = f"[{timestamp}] {role.upper()} ({mode}): {content[:200]}{'...' if len(content) > 200 else ''}\n"
+        
+        print(f"DEBUG: Saving to history: {role.upper()} message ({len(content)} chars)", file=sys.stderr)
+        
+        # Append to file
+        with open(history_file, 'a', encoding='utf-8') as f:
+            f.write(entry)
+            f.flush()  # Ensure it's written immediately
+            
+        print(f"DEBUG: Successfully saved message to {history_file}", file=sys.stderr)
+            
+        # Keep only last 10 messages to prevent file from growing too large
+        trim_chat_history()
+        
+    except Exception as e:
+        print(f"ERROR: Could not save chat history: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+
+def trim_chat_history(max_messages: int = 10) -> None:
+    """
+    Keep only the last N messages in the chat history file.
+    
+    Args:
+        max_messages (int): Maximum number of messages to keep
+    """
+    try:
+        history_file = get_chat_history_file()
+        
+        if not os.path.exists(history_file):
+            return
+            
+        # Read all lines
+        with open(history_file, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        # Keep only the last max_messages lines
+        if len(lines) > max_messages:
+            lines = lines[-max_messages:]
+            
+            # Write back to file
+            with open(history_file, 'w', encoding='utf-8') as f:
+                f.writelines(lines)
+                
+    except Exception as e:
+        print(f"Warning: Could not trim chat history: {e}", file=sys.stderr)
+
+def get_recent_chat_history(max_messages: int = 6) -> str:
+    """
+    Get recent chat history formatted for AI context.
+    
+    Args:
+        max_messages (int): Maximum number of recent messages to include
+        
+    Returns:
+        str: Formatted chat history or empty string if none available
+    """
+    try:
+        history_file = get_chat_history_file()
+        
+        if not os.path.exists(history_file):
+            print(f"DEBUG: Chat history file does not exist: {history_file}", file=sys.stderr)
+            return ""
+            
+        # Read recent lines
+        with open(history_file, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        print(f"DEBUG: Read {len(lines)} lines from chat history", file=sys.stderr)
+        
+        if not lines:
+            print("DEBUG: No lines in chat history file", file=sys.stderr)
+            return ""
+        
+        # Filter out comment lines and empty lines
+        message_lines = [line for line in lines if line.strip() and not line.startswith('#')]
+        
+        if not message_lines:
+            print("DEBUG: No message lines found in chat history", file=sys.stderr)
+            return ""
+            
+        # Get last max_messages lines
+        recent_lines = message_lines[-max_messages:] if len(message_lines) > max_messages else message_lines
+        
+        print(f"DEBUG: Using {len(recent_lines)} recent messages for context", file=sys.stderr)
+        
+        if not recent_lines:
+            return ""
+            
+        # Format for AI context
+        history_context = "\n--- Recent Chat History ---\n"
+        for line in recent_lines:
+            history_context += line
+        history_context += "--- End History ---\n\n"
+        
+        print(f"DEBUG: Generated history context ({len(history_context)} chars)", file=sys.stderr)
+        
+        return history_context
+        
+    except Exception as e:
+        print(f"ERROR: Could not read chat history: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        return ""
+
+def clear_chat_history() -> None:
+    """
+    Clear the chat history file.
+    """
+    try:
+        history_file = get_chat_history_file()
+        if os.path.exists(history_file):
+            os.remove(history_file)
+            print("Chat history cleared.", file=sys.stderr)
+    except Exception as e:
+        print(f"Warning: Could not clear chat history: {e}", file=sys.stderr)
 
 def call_openrouter(user_input: str, mode: str = "chat") -> Dict[str, Any]:
     """
@@ -107,6 +279,9 @@ def call_openrouter(user_input: str, mode: str = "chat") -> Dict[str, Any]:
     # Validate mode
     if mode not in ["chat", "detect"]:
         return {"error": f"Invalid mode '{mode}'. Use 'chat' or 'detect'"}
+    
+    # Save user message to history
+    save_chat_message("user", user_input, mode)
     
     # Get API key from environment variable
     api_key = os.getenv('OPENROUTER_API_KEY')
@@ -130,10 +305,22 @@ def call_openrouter(user_input: str, mode: str = "chat") -> Dict[str, Any]:
     # Read system prompt based on mode
     system_prompt = read_system_prompt(mode)
     
+    # Get recent chat history for context
+    chat_history = get_recent_chat_history()
+    
+    # Add chat history to system prompt if available
+    if chat_history:
+        print(f"DEBUG: Including chat history ({len(chat_history.split('\\n')) - 4} messages)", file=sys.stderr)
+        print(f"DEBUG: Chat history content: {chat_history[:300]}{'...' if len(chat_history) > 300 else ''}", file=sys.stderr)
+        system_prompt_with_history = system_prompt + "\n\n" + chat_history + "Use this chat history to maintain context and provide appropriate follow-up responses."
+    else:
+        print("DEBUG: No chat history available", file=sys.stderr)
+        system_prompt_with_history = system_prompt
+    
     # Add system prompt
     messages.append({
         "role": "system",
-        "content": system_prompt
+        "content": system_prompt_with_history
     })
     
     # Add user input
@@ -161,6 +348,10 @@ def call_openrouter(user_input: str, mode: str = "chat") -> Dict[str, Any]:
         # Extract the content from the response
         if result.get("choices") and len(result["choices"]) > 0:
             content = result["choices"][0]["message"]["content"]
+            
+            # Save AI response to history
+            save_chat_message("assistant", content, mode)
+            
             return {
                 "success": True,
                 "response": content,
@@ -171,14 +362,22 @@ def call_openrouter(user_input: str, mode: str = "chat") -> Dict[str, Any]:
                 "id": result.get("id", "")
             }
         else:
-            return {"error": "No response content found"}
+            error_msg = "No response content found"
+            save_chat_message("assistant", f"ERROR: {error_msg}", mode)
+            return {"error": error_msg}
             
     except requests.exceptions.RequestException as e:
-        return {"error": f"API request failed: {str(e)}"}
+        error_msg = f"API request failed: {str(e)}"
+        save_chat_message("assistant", f"ERROR: {error_msg}", mode)
+        return {"error": error_msg}
     except json.JSONDecodeError as e:
-        return {"error": f"Invalid JSON response: {str(e)}"}
+        error_msg = f"Invalid JSON response: {str(e)}"
+        save_chat_message("assistant", f"ERROR: {error_msg}", mode)
+        return {"error": error_msg}
     except Exception as e:
-        return {"error": f"Unexpected error: {str(e)}"}
+        error_msg = f"Unexpected error: {str(e)}"
+        save_chat_message("assistant", f"ERROR: {error_msg}", mode)
+        return {"error": error_msg}
 
 # Example usage with mode selection
 if __name__ == "__main__":
@@ -224,6 +423,6 @@ if __name__ == "__main__":
     # Use smart detection to determine input type and mode
     formatted_input, determined_mode = detect_input_type_and_format(raw_input, specified_mode)
     
-    print(f"Using {determined_mode} mode...")
+    print(f"DEBUG: Input: '{raw_input}' -> Mode: {determined_mode}", file=sys.stderr)
     result = call_openrouter(formatted_input, determined_mode)
     print(json.dumps(result, indent=2))

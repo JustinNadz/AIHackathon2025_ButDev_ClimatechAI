@@ -2,7 +2,7 @@
 
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { StatusCards } from "@/components/status-cards"
-import { InteractiveMap } from "@/components/interactive-map"
+import { InteractiveMap, InteractiveMapRef } from "@/components/interactive-map"
 
 import { useState, useRef } from "react"
 import VoiceAssistant from "@/components/VoiceAssistant"
@@ -19,25 +19,32 @@ export default function DashboardPage() {
   const [isSendingLive, setIsSendingLive] = useState(false)
   const [isSendingSim, setIsSendingSim] = useState(false)
   const emergencyChatRef = useRef<EmergencyChatRef>(null)
+  const interactiveMapRef = useRef<InteractiveMapRef>(null)
 
   const sendLiveWeather = async () => {
     try {
       setIsSendingLive(true)
+      
+      // Create environmental data object
+      const environmentalData = {
+        latitude: 10.7302,
+        longitude: 122.5591,
+        category: "Severe Tropical Storm",
+        sustainedWind_kmh: 89,
+        gustWind_kmh: 115,
+        humidity_pct: 85,
+        temperature_c: 24,
+        rainfallRate_mm_hr: 30
+      }
+      
+      console.log('🌤️ Sending environmental data to AI:', environmentalData);
+      
       // Hit a backend endpoint to ingest current weather (implement in backend)
       const resp = await fetch(`http://localhost:3000/api/assistant/chatLite`, { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: {
-            latitude: 10.7302,
-            longitude: 122.5591,
-            category: "Severe Tropical Storm",
-            sustainedWind_kmh: 89,
-            gustWind_kmh: 115,
-            humidity_pct: 85,
-            temperature_c: 24,
-            rainfallRate_mm_hr: 30
-          },
+          prompt: JSON.stringify(environmentalData), // Convert object to JSON string
           mode: "detect"
         })
       })
@@ -92,6 +99,11 @@ export default function DashboardPage() {
         console.warn('No valid response text found or chat ref not available')
       }
       
+      // Check and display flood areas on map based on the environmental data sent
+      if (interactiveMapRef.current) {
+        interactiveMapRef.current.checkAndDisplayFloodAreas(environmentalData)
+      }
+      
     } catch (err) {
       console.error('sendLiveWeather failed:', err)
       
@@ -112,7 +124,7 @@ export default function DashboardPage() {
       // Example simulated payload; backend should accept scenario and values
       const payload = {
         scenario: 'heavy_rainfall_warning',
-        location: { lat: 10.7202, lng: 122.5621, name: 'Iloilo City' },
+        location: { lat: 8.951549, lng: 125.527725, name: 'btuuan City' },
         temperature_c: 25.5,
         humidity_pct: 92,
         rainfall_mm_hr: 35,
@@ -166,7 +178,7 @@ export default function DashboardPage() {
         <div className="grid lg:grid-cols-3 gap-6 w-full min-w-0">
           {/* Interactive Map - Takes up 2 columns */}
           <div className="lg:col-span-2 min-w-0 w-full">
-            <InteractiveMap />
+            <InteractiveMap ref={interactiveMapRef} />
           </div>
 
           {/* Right Panel */}

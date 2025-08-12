@@ -180,6 +180,14 @@ const EmergencyChat = forwardRef<EmergencyChatRef, {}>((_, ref) => {
       recognitionRef.current.stop()
       setListening(false)
       setStatus('idle')
+      
+      // Auto-send the message if there's input after voice recording
+      setTimeout(() => {
+        if (input.trim() && !busy) {
+          send()
+        }
+      }, 500) // Small delay to ensure speech recognition has finished processing
+      
     } catch {}
   }
 

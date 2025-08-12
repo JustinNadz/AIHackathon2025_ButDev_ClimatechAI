@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react"
 import { Wrapper, Status } from "@googlemaps/react-wrapper"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -614,7 +614,7 @@ const render = (status: Status): React.ReactElement => {
 	}
 };
 
-export function InteractiveMap() {
+export const InteractiveMap = forwardRef<InteractiveMapRef, {}>((_, ref) => {
 
 	const [selectedLocation, setSelectedLocation] = useState<{ lat: number, lng: number }>({ lat: 8.95, lng: 125.54 });
 	const [selectedLayer, setSelectedLayer] = useState<string>("none");
@@ -664,6 +664,136 @@ export function InteractiveMap() {
 	const [backendWeatherData, setBackendWeatherData] = useState<BackendWeatherData[]>([]);
 	const [isLoadingBackendData, setIsLoadingBackendData] = useState(false);
 	const [backendDataMarkers, setBackendDataMarkers] = useState<google.maps.Marker[]>([]);
+
+	// State for affected area polygons (flood-prone areas from AI system prompt)
+	const [affectedAreaPolygons, setAffectedAreaPolygons] = useState<google.maps.Polygon[]>([]);
+	const [showAffectedAreas, setShowAffectedAreas] = useState(false);
+
+	// Function to check if environmental data matches flood trigger thresholds
+	const checkFloodTriggers = (envData: any): boolean => {
+		if (!envData || typeof envData !== 'object') {
+			console.log('❌ No valid environmental data provided');
+			return false;
+		}
+		
+		console.log('🔍 Checking environmental data against flood thresholds:', envData);
+		
+		const checks = [
+			{
+				name: 'Sustained Wind',
+				value: envData.sustainedWind_kmh,
+				range: FLOOD_TRIGGER_THRESHOLDS.sustainedWind_kmh,
+				passes: envData.sustainedWind_kmh >= FLOOD_TRIGGER_THRESHOLDS.sustainedWind_kmh.min && 
+						envData.sustainedWind_kmh <= FLOOD_TRIGGER_THRESHOLDS.sustainedWind_kmh.max
+			},
+			{
+				name: 'Gust Wind',
+				value: envData.gustWind_kmh,
+				range: FLOOD_TRIGGER_THRESHOLDS.gustWind_kmh,
+				passes: envData.gustWind_kmh >= FLOOD_TRIGGER_THRESHOLDS.gustWind_kmh.min && 
+						envData.gustWind_kmh <= FLOOD_TRIGGER_THRESHOLDS.gustWind_kmh.max
+			},
+			{
+				name: 'Humidity',
+				value: envData.humidity_pct,
+				range: FLOOD_TRIGGER_THRESHOLDS.humidity_pct,
+				passes: envData.humidity_pct >= FLOOD_TRIGGER_THRESHOLDS.humidity_pct.min && 
+						envData.humidity_pct <= FLOOD_TRIGGER_THRESHOLDS.humidity_pct.max
+			},
+			{
+				name: 'Temperature',
+				value: envData.temperature_c,
+				range: FLOOD_TRIGGER_THRESHOLDS.temperature_c,
+				passes: envData.temperature_c >= FLOOD_TRIGGER_THRESHOLDS.temperature_c.min && 
+						envData.temperature_c <= FLOOD_TRIGGER_THRESHOLDS.temperature_c.max
+			},
+			{
+				name: 'Rainfall Rate',
+				value: envData.rainfallRate_mm_hr,
+				range: FLOOD_TRIGGER_THRESHOLDS.rainfallRate_mm_hr,
+				passes: envData.rainfallRate_mm_hr >= FLOOD_TRIGGER_THRESHOLDS.rainfallRate_mm_hr.min && 
+						envData.rainfallRate_mm_hr <= FLOOD_TRIGGER_THRESHOLDS.rainfallRate_mm_hr.max
+			}
+		];
+		
+		// Log each check
+		checks.forEach(check => {
+			const status = check.passes ? '✅' : '❌';
+			console.log(`${status} ${check.name}: ${check.value} (range: ${check.range.min}-${check.range.max})`);
+		});
+		
+		// Return true if at least 3 out of 5 thresholds are met
+		const matchCount = checks.filter(check => check.passes).length;
+		const result = matchCount >= 3;
+		
+		console.log(`📊 Threshold Summary: ${matchCount}/5 conditions met. Flood trigger: ${result ? 'YES' : 'NO'}`);
+		
+		return result;
+	};
+
+	// Function to display affected area polygons
+	const displayAffectedAreas = () => {
+		if (!map) return;
+		
+		console.log('🚨 DISPLAYING FLOOD-PRONE AREAS - AI DETECTED FLOOD CONDITIONS');
+		
+		// Clear existing polygons
+		affectedAreaPolygons.forEach(polygon => polygon.setMap(null));
+		
+		const newPolygons: google.maps.Polygon[] = [];
+		
+		AFFECTED_AREAS.forEach(area => {
+			const polygon = new google.maps.Polygon({
+				paths: area.coords,
+				strokeColor: '#DC2626', // bright red
+				strokeOpacity: 1.0, // fully opaque
+				strokeWeight: 3, // thick border
+				fillColor: '#FCA5A5', // light red fill
+				fillOpacity: 0.5, // semi-transparent
+				map: map,
+				zIndex: 100 // high z-index to appear above everything
+			});
+			
+			// Add info window for area name
+			const infoWindow = new google.maps.InfoWindow({
+				content: `
+					<div class="p-3">
+						<h3 class="font-semibold text-red-700 text-lg">⚠️ ${area.name}</h3>
+						<p class="text-sm text-red-600 font-medium">FLOOD-PRONE AREA</p>
+						<p class="text-xs text-gray-600 mt-2">AI detected conditions matching severe tropical storm patterns</p>
+						<p class="text-xs text-gray-500 mt-1">Historical flood risk area</p>
+					</div>
+				`
+			});
+			
+			polygon.addListener('click', (event: google.maps.MapMouseEvent) => {
+				if (currentInfoWindowRef.current) {
+					currentInfoWindowRef.current.close();
+				}
+				if (event.latLng) {
+					infoWindow.setPosition(event.latLng);
+					infoWindow.open(map);
+					currentInfoWindowRef.current = infoWindow;
+				}
+			});
+			
+			newPolygons.push(polygon);
+		});
+		
+		setAffectedAreaPolygons(newPolygons);
+		setShowAffectedAreas(true);
+		
+		console.log(`✅ Displayed ${newPolygons.length} flood-prone area polygons`);
+	};
+
+	// Function to hide affected area polygons
+	const hideAffectedAreas = () => {
+		console.log('🔄 HIDING FLOOD-PRONE AREAS - No flood conditions detected');
+		affectedAreaPolygons.forEach(polygon => polygon.setMap(null));
+		setAffectedAreaPolygons([]);
+		setShowAffectedAreas(false);
+		console.log('✅ All flood-prone area polygons hidden');
+	};
 
 	const getPolygonCentroid = (coords: google.maps.LatLngLiteral[]): google.maps.LatLngLiteral => {
 		const { length } = coords;
@@ -1249,34 +1379,39 @@ export function InteractiveMap() {
 			barangayMarkers.forEach(m => m.setMap(null));
 			const newPolys: google.maps.Polygon[] = [];
 			const newMarks: google.maps.Marker[] = [];
-			const color = '#2563eb'; // blue outline
-			const fill = '#60a5fa'; // light blue
+			const color = '#e5e7eb'; // very light gray outline
+			const fill = '#f9fafb'; // very light gray fill
 			barangays.forEach(b => {
 				if (!b.coords || b.coords.length < 3) return;
 				const poly = new google.maps.Polygon({
 					paths: b.coords,
 					strokeColor: color,
-					strokeOpacity: 0.9,
-					strokeWeight: 2,
+					strokeOpacity: 0.3, // very subtle
+					strokeWeight: 1, // thin line
 					fillColor: fill,
-					fillOpacity: 0.18,
+					fillOpacity: 0.05, // barely visible
 					map: mapInstance,
-					zIndex: 60,
+					zIndex: 10, // lower z-index so flood areas appear on top
 				});
 				newPolys.push(poly);
-				// label marker at centroid
+				// label marker at centroid - only show name, no background
 				const centroid = getPolygonCentroid(b.coords);
 				const label = new google.maps.Marker({
 					position: centroid,
 					map: mapInstance,
 					icon: getTransparentIcon(),
-					label: { text: b.name, color: '#1f2937', fontSize: '12px' as any, fontWeight: '600' as any },
-					zIndex: 70,
+					label: { 
+						text: b.name, 
+						color: '#9ca3af', // light gray text
+						fontSize: '10px' as any, 
+						fontWeight: '400' as any // normal weight
+					},
+					zIndex: 20,
 				});
 				newMarks.push(label);
 				// info window on click
 				const info = new google.maps.InfoWindow({
-					content: `<div style="font:13px system-ui"><strong>Barangay:</strong> ${b.name}</div>`
+					content: `<div style="font:13px system-ui"><strong>Barangay:</strong> ${b.name}<br><small style="color:#6b7280">Administrative boundary</small></div>`
 				});
 				poly.addListener('click', (e: google.maps.MapMouseEvent) => {
 					currentInfoWindowRef.current?.close();
@@ -2096,6 +2231,21 @@ export function InteractiveMap() {
 		);
 	}
 
+	// Expose methods to parent components via ref
+	useImperativeHandle(ref, () => ({
+		checkAndDisplayFloodAreas: (environmentalData: any) => {
+			console.log('Checking environmental data for flood triggers:', environmentalData);
+			if (checkFloodTriggers(environmentalData)) {
+				console.log('Flood triggers detected, displaying affected areas');
+				displayAffectedAreas();
+			} else {
+				console.log('No flood triggers detected');
+				hideAffectedAreas();
+			}
+		},
+		hideFloodAreas: hideAffectedAreas
+	}));
+
 	return (
 		<>
 			{/* Full Screen Modal */}
@@ -2569,5 +2719,166 @@ export function InteractiveMap() {
 			</Card>
 		</>
 	)
+})
+
+InteractiveMap.displayName = "InteractiveMap"
+
+export default InteractiveMap
+
+// Affected areas data from AI system prompt (flood-prone areas)
+const AFFECTED_AREAS = [
+	{
+		name: 'Baobaoan',
+		coords: [
+			{ lat: 9.051295146577583, lng: 125.56477071956743 },
+			{ lat: 9.003612744526409, lng: 125.56452545248364 },
+			{ lat: 9.005561298011134, lng: 125.59547799185972 },
+			{ lat: 9.05093956660449, lng: 125.58109879355074 },
+		],
+	},
+	{
+		name: 'Mandamo',
+		coords: [
+			{ lat: 8.7630, lng: 125.5989 },
+			{ lat: 8.7600, lng: 125.6050 },
+			{ lat: 8.7580, lng: 125.6040 },
+			{ lat: 8.7605, lng: 125.6000 },
+		],
+	},
+	{
+		name: 'San Vicente',
+		coords: [
+			{ lat: 8.9070, lng: 125.5520 },
+			{ lat: 8.9070, lng: 125.5575 },
+			{ lat: 8.9040, lng: 125.5575 },
+			{ lat: 8.9040, lng: 125.5520 },
+		],
+	},
+	{
+		name: 'Baan Riverside Poblacion',
+		coords: [
+			{ lat: 8.9540, lng: 125.5460 },
+			{ lat: 8.9540, lng: 125.5510 },
+			{ lat: 8.9500, lng: 125.5510 },
+			{ lat: 8.9500, lng: 125.5460 },
+		],
+	},
+	{
+		name: 'Golden Ribbon Poblacion',
+		coords: [
+			{ lat: 8.9410, lng: 125.5403 },
+			{ lat: 8.9410, lng: 125.5433 },
+			{ lat: 8.9380, lng: 125.5433 },
+			{ lat: 8.9380, lng: 125.5403 },
+		],
+	},
+	{
+		name: 'Pangabugan',
+		coords: [
+			{ lat: 8.9280, lng: 125.5501 },
+			{ lat: 8.9280, lng: 125.5551 },
+			{ lat: 8.9230, lng: 125.5551 },
+			{ lat: 8.9230, lng: 125.5501 },
+		],
+	},
+	{
+		name: 'Mahogany Poblacion',
+		coords: [
+			{ lat: 8.9775, lng: 125.5610 },
+			{ lat: 8.9775, lng: 125.5570 },
+			{ lat: 8.9735, lng: 125.5570 },
+			{ lat: 8.9735, lng: 125.5610 },
+		],
+	},
+	{
+		name: 'Buhangin Poblacion',
+		coords: [
+			{ lat: 8.9480, lng: 125.5520 },
+			{ lat: 8.9480, lng: 125.5460 },
+			{ lat: 8.9420, lng: 125.5460 },
+			{ lat: 8.9420, lng: 125.5520 },
+		],
+	},
+	{
+		name: 'Agusan Pequeño',
+		coords: [
+			{ lat: 8.9768, lng: 125.5282 },
+			{ lat: 8.9768, lng: 125.5222 },
+			{ lat: 8.9708, lng: 125.5222 },
+			{ lat: 8.9708, lng: 125.5282 },
+		],
+	},
+	{
+		name: 'Aupagan',
+		coords: [
+			{ lat: 8.8926, lng: 125.5570 },
+			{ lat: 8.8926, lng: 125.5530 },
+			{ lat: 8.8886, lng: 125.5530 },
+			{ lat: 8.8886, lng: 125.5570 },
+		],
+	},
+	{
+		name: 'Obrero Poblacion',
+		coords: [
+			{ lat: 8.9595, lng: 125.5273 },
+			{ lat: 8.9595, lng: 125.5233 },
+			{ lat: 8.9555, lng: 125.5233 },
+			{ lat: 8.9555, lng: 125.5273 },
+		],
+	},
+	{
+		name: 'Bading Poblacion',
+		coords: [
+			{ lat: 8.9595, lng: 125.5273 },
+			{ lat: 8.9595, lng: 125.5233 },
+			{ lat: 8.9555, lng: 125.5233 },
+			{ lat: 8.9555, lng: 125.5273 },
+		],
+	},
+];
+
+// Environmental data thresholds for triggering flood area display
+const FLOOD_TRIGGER_THRESHOLDS = {
+	sustainedWind_kmh: { min: 89, max: 117 },
+	gustWind_kmh: { min: 115, max: 140 },
+	humidity_pct: { min: 85, max: 99 },
+	temperature_c: { min: 24, max: 28 },
+	rainfallRate_mm_hr: { min: 30, max: 50 }
+};
+
+export interface InteractiveMapRef {
+	checkAndDisplayFloodAreas: (environmentalData: any) => void;
+	hideFloodAreas: () => void;
+}
+
+interface WeatherData {
+	_id: string;
+	location: {
+		latitude: number;
+		longitude: number;
+		name: string;
+	};
+	temperature?: {
+		value: number;
+		unit: string;
+	};
+	humidity?: number;
+	pressure?: {
+		value: number;
+		unit: string;
+	};
+	windSpeed?: {
+		value: number;
+		unit: string;
+	};
+	windDirection?: number;
+	visibility?: {
+		value: number;
+		unit: string;
+	};
+	uvIndex?: number;
+	cloudCover?: number;
+	condition?: string;
+	timestamp: string;
 }
 

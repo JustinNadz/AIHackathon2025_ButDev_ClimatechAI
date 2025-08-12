@@ -1,0 +1,10 @@
+[2025-08-13 06:01:54] USER (chat): what should I do next
+[2025-08-13 06:02:08] ASSISTANT (chat): 
+
+Given the detected Severe Tropical Storm with sustained winds at 89 km/h and identified flood-prone areas, the next steps should focus on **coordinated government action**. 
+
+1. **Activate the Local...
+[2025-08-13 06:02:33] USER (chat): what areas are most impacted
+[2025-08-13 06:02:39] ASSISTANT (chat): 
+
+Based on current data, the areas most impacted by the Severe Tropical Storm are projected to be those within the designated Zone 3 flood plain – specifically, the municipalities of San Isidro, Balay...
