@@ -42,12 +42,12 @@ class GoogleWeatherAPI:
         """
         try:
             # Google Weather API endpoint
-            url = f"{self.base_url}/current"
+            url = f"{self.base_url}/currentConditions:lookup"
             
             params = {
-                'location': f"{lat},{lng}",
+                'location.latitude':{lat},
+                'location.longitude':{lng},
                 'key': self.api_key,
-                'units': 'metric'  # Use metric units
             }
             
             print(f"🌤️ Fetching weather data from Google Weather API...")
@@ -87,30 +87,40 @@ class GoogleWeatherAPI:
             Standardized weather data dictionary
         """
         try:
-            # Extract current weather data
-            current = google_data.get('current', {})
-            
-            # Extract location data
-            location_data = google_data.get('location', {})
-            location_name = location_data.get('name', f"Weather Station at ({lat:.4f}, {lng:.4f})")
+            # Extract location data (Google API doesn't provide location name in response)
+            location_name = f"Weather Station at ({lat:.4f}, {lng:.4f})"
             
             # Extract weather conditions
-            weather_conditions = current.get('condition', {})
-            temperature = current.get('temp_c')
-            humidity = current.get('humidity')
-            wind_speed = current.get('wind_kph')
-            wind_direction = current.get('wind_degree')
-            pressure = current.get('pressure_mb')
+            weather_condition = google_data.get('weatherCondition', {})
+            description = weather_condition.get('description', {}).get('text', 'Unknown')
             
-            # Calculate rainfall (Google doesn't provide current rainfall, so we estimate)
-            rainfall = 0.0
-            if weather_conditions.get('text', '').lower() in ['rain', 'light rain', 'moderate rain', 'heavy rain']:
-                rainfall = 2.5  # Default rainfall when conditions indicate rain
+            # Extract temperature data
+            temperature_data = google_data.get('temperature', {})
+            temperature = temperature_data.get('degrees')
+            
+            # Extract humidity
+            humidity = google_data.get('relativeHumidity')
+            
+            # Extract wind data
+            wind_data = google_data.get('wind', {})
+            wind_speed_data = wind_data.get('speed', {})
+            wind_direction_data = wind_data.get('direction', {})
+            wind_speed = wind_speed_data.get('value')
+            wind_direction = wind_direction_data.get('degrees')
+            
+            # Extract pressure
+            air_pressure = google_data.get('airPressure', {})
+            pressure = air_pressure.get('meanSeaLevelMillibars')
+            
+            # Extract precipitation data
+            precipitation = google_data.get('precipitation', {})
+            qpf = precipitation.get('qpf', {})
+            rainfall = qpf.get('quantity', 0.0)  # Current rainfall in millimeters
             
             # Get timestamp
-            timestamp = current.get('last_updated_epoch')
-            if timestamp:
-                recorded_at = datetime.fromtimestamp(timestamp)
+            current_time = google_data.get('currentTime')
+            if current_time:
+                recorded_at = datetime.fromisoformat(current_time.replace('Z', '+00:00'))
             else:
                 recorded_at = datetime.now()
             
@@ -127,7 +137,7 @@ class GoogleWeatherAPI:
                     "wind_speed": round(wind_speed, 1) if wind_speed else None,
                     "wind_direction": round(wind_direction, 1) if wind_direction else None,
                     "pressure": round(pressure, 1) if pressure else None,
-                    "description": weather_conditions.get('text', 'Unknown'),
+                    "description": description,
                     "timestamp": recorded_at.isoformat()
                 },
                 "source": "google_weather_api",
@@ -217,37 +227,6 @@ class GoogleWeatherAPI:
             time.sleep(0.5)
         
         return weather_data_list
-    
-    def get_weather_for_philippines_grid(self, grid_spacing: float = 0.5) -> List[Dict]:
-        """
-        Get weather data for a grid covering the Philippines
-        
-        Args:
-            grid_spacing: Spacing between grid points in degrees
-            
-        Returns:
-            List of weather data for grid points
-        """
-        # Philippines bounding box (approximate)
-        philippines_bounds = {
-            "min_lat": 4.0,
-            "max_lat": 21.0,
-            "min_lng": 116.0,
-            "max_lng": 127.0
-        }
-        
-        locations = []
-        lat = philippines_bounds["min_lat"]
-        
-        while lat <= philippines_bounds["max_lat"]:
-            lng = philippines_bounds["min_lng"]
-            while lng <= philippines_bounds["max_lng"]:
-                locations.append((lat, lng))
-                lng += grid_spacing
-            lat += grid_spacing
-        
-        print(f"🌍 Generating weather data for {len(locations)} grid points across Philippines")
-        return self.get_weather_for_multiple_locations(locations)
 
 
 def main():
