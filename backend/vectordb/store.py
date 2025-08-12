@@ -5,7 +5,7 @@ from config import OPENROUTER_API_KEY, CHROMA_DB_DIR
 # Prefer a local/HF embedding to avoid API schema mismatches with OpenRouter
 _embeddings = None
 try:
-    from langchain_community.embeddings import HuggingFaceEmbeddings
+    from langchain_huggingface import HuggingFaceEmbeddings
 
     _embeddings = HuggingFaceEmbeddings(
         model_name="sentence-transformers/all-MiniLM-L6-v2"
