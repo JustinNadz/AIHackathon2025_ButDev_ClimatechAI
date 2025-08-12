@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Send, Loader2, Mic, Square } from "lucide-react"
+import VoiceOrb from "@/components/VoiceOrb"
 
 type ChatMessage = {
   id: string
@@ -25,6 +26,7 @@ export default function EmergencyChat() {
   const [input, setInput] = useState("")
   const [busy, setBusy] = useState(false)
   const [listening, setListening] = useState(false)
+  const [status, setStatus] = useState<'idle' | 'listening' | 'thinking' | 'responded' | 'error'>('idle')
   const listRef = useRef<HTMLDivElement>(null)
   const recognitionRef = useRef<any>(null)
 
@@ -64,6 +66,7 @@ export default function EmergencyChat() {
     try {
       setInput("")
       setListening(true)
+      setStatus('listening')
       recognitionRef.current.start()
     } catch {}
   }
@@ -73,6 +76,7 @@ export default function EmergencyChat() {
     try {
       recognitionRef.current.stop()
       setListening(false)
+      setStatus('idle')
     } catch {}
   }
 
@@ -97,9 +101,13 @@ export default function EmergencyChat() {
       const content = data?.reply || (res.ok ? 'OK' : 'No response available.')
 
       setMessages((m) => [...m, { id: crypto.randomUUID(), role: 'assistant', content, time: new Date().toLocaleTimeString() }])
+      setStatus('responded')
+      setTimeout(() => setStatus('idle'), 1500)
       scrollToBottom()
     } catch (e) {
       setMessages((m) => [...m, { id: crypto.randomUUID(), role: 'assistant', content: 'Unable to reach assistant right now. Please try again shortly.', time: new Date().toLocaleTimeString() }])
+      setStatus('error')
+      setTimeout(() => setStatus('idle'), 1500)
     } finally {
       setBusy(false)
     }
@@ -114,6 +122,10 @@ export default function EmergencyChat() {
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
+        {/* AI Globe (voice orb) */}
+        <div className="flex items-center justify-center py-1">
+          <VoiceOrb state={status} size={140} />
+        </div>
         {/* Chat box (messages + input in one bordered box) */}
         <div className="rounded-lg border bg-white/60 overflow-hidden flex flex-col min-h-full sm:h-[480px]"
         style={{ height: '690px' }}>
@@ -139,6 +151,24 @@ export default function EmergencyChat() {
                 aria-label="Message to emergency assistant"
                 className="flex-1 border-0 shadow-none outline-none focus-visible:ring-0 focus-visible:outline-none resize-none min-h-[40px] max-h-28 p-2"
               />
+              {/* Status circle */}
+              <div className="relative h-3 w-3 mr-1" aria-live="polite" aria-label={`status-${status}`}>
+                {status === 'listening' && (
+                  <span className="absolute inset-0 rounded-full bg-blue-400/70 animate-ping" />
+                )}
+                {status === 'thinking' && (
+                  <span className="absolute inset-0 rounded-full border-2 border-blue-400 border-t-transparent animate-spin" />
+                )}
+                {status === 'responded' && (
+                  <span className="absolute inset-0 rounded-full bg-green-500" />
+                )}
+                {status === 'error' && (
+                  <span className="absolute inset-0 rounded-full bg-red-500" />
+                )}
+                {status === 'idle' && (
+                  <span className="absolute inset-0 rounded-full bg-gray-300" />
+                )}
+              </div>
               <Button
                 type="button"
                 onClick={listening ? stopListening : startListening}
@@ -149,7 +179,9 @@ export default function EmergencyChat() {
               >
                 {listening ? <Square className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
               </Button>
-              <Button type="submit" disabled={busy || !input.trim()} size="icon" className="h-9 w-9 rounded-full bg-blue-600 hover:bg-blue-700 text-white">
+              <Button type="submit" disabled={busy || !input.trim()} size="icon" className="h-9 w-9 rounded-full bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => setStatus('thinking')}
+              >
                 {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </Button>
             </div>

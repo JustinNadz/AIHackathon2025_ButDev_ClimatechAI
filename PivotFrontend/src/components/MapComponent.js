@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Loader } from '@googlemaps/js-api-loader';
 
 const MapComponent = () => {
   const mapRef = useRef(null);
@@ -6,117 +7,64 @@ const MapComponent = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
-    const loadGoogleMaps = () => {
-      // Get API key from environment variable
-      const apiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
-      
-      if (!apiKey) {
-        console.warn('Google Maps API key not found. Add REACT_APP_GOOGLE_MAPS_API_KEY to .env.local');
-        return;
-      }
+    const apiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      console.error('Google Maps API key not found. Add REACT_APP_GOOGLE_MAPS_API_KEY to .env.local');
+      return undefined;
+    }
 
-      // Load Google Maps script
-      const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
-      script.async = true;
-      script.defer = true;
-      
-      script.onload = () => {
-        if (mapRef.current && window.google) {
-          // Define Iloilo City boundaries
-          const iloiloBounds = new window.google.maps.LatLngBounds(
-            new window.google.maps.LatLng(10.65, 122.50), // Southwest corner
-            new window.google.maps.LatLng(10.79, 122.62)  // Northeast corner
-          );
+    const loader = new Loader({
+      apiKey,
+      version: 'weekly',
+      libraries: ['places']
+    });
 
-          // Initialize map focused on Iloilo City
-          mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
-            center: { lat: 10.7202, lng: 122.5621 }, // Iloilo City center
-            zoom: 12,
-            minZoom: 10,
-            maxZoom: 16,
-            restriction: {
-              latLngBounds: iloiloBounds,
-              strictBounds: true
-            },
-            mapTypeId: window.google.maps.MapTypeId.ROADMAP,
-            mapTypeControl: true,
-            streetViewControl: true,
-            fullscreenControl: true,
-            styles: [
-              {
-                featureType: "poi",
-                elementType: "all",
-                stylers: [{ visibility: "off" }]
-              },
-              {
-                featureType: "poi.business",
-                elementType: "all", 
-                stylers: [{ visibility: "off" }]
-              },
-              {
-                featureType: "poi.attraction",
-                elementType: "all",
-                stylers: [{ visibility: "off" }]
-              },
-              {
-                featureType: "poi.government",
-                elementType: "all",
-                stylers: [{ visibility: "off" }]
-              },
-              {
-                featureType: "poi.medical",
-                elementType: "all",
-                stylers: [{ visibility: "off" }]
-              },
-              {
-                featureType: "poi.park",
-                elementType: "all",
-                stylers: [{ visibility: "off" }]
-              },
-              {
-                featureType: "poi.place_of_worship",
-                elementType: "all",
-                stylers: [{ visibility: "off" }]
-              },
-              {
-                featureType: "poi.school",
-                elementType: "all",
-                stylers: [{ visibility: "off" }]
-              },
-              {
-                featureType: "poi.sports_complex",
-                elementType: "all",
-                stylers: [{ visibility: "off" }]
-              },
-              {
-                featureType: "transit",
-                elementType: "all",
-                stylers: [{ visibility: "off" }]
-              }
-            ]
-          });
+    let isCancelled = false;
 
+    loader
+      .load()
+      .then((google) => {
+        if (isCancelled || !mapRef.current) return;
 
-        }
-      };
+        const iloiloBounds = new google.maps.LatLngBounds(
+          new google.maps.LatLng(10.65, 122.5),
+          new google.maps.LatLng(10.79, 122.62)
+        );
 
-      script.onerror = () => {
-        console.error('Failed to load Google Maps script');
-      };
+        mapInstanceRef.current = new google.maps.Map(mapRef.current, {
+          center: { lat: 10.7202, lng: 122.5621 },
+          zoom: 12,
+          minZoom: 10,
+          maxZoom: 16,
+          restriction: {
+            latLngBounds: iloiloBounds,
+            strictBounds: true
+          },
+          mapTypeId: google.maps.MapTypeId.ROADMAP,
+          mapTypeControl: true,
+          streetViewControl: true,
+          fullscreenControl: true,
+          styles: [
+            { featureType: 'poi', elementType: 'all', stylers: [{ visibility: 'off' }] },
+            { featureType: 'poi.business', elementType: 'all', stylers: [{ visibility: 'off' }] },
+            { featureType: 'poi.attraction', elementType: 'all', stylers: [{ visibility: 'off' }] },
+            { featureType: 'poi.government', elementType: 'all', stylers: [{ visibility: 'off' }] },
+            { featureType: 'poi.medical', elementType: 'all', stylers: [{ visibility: 'off' }] },
+            { featureType: 'poi.park', elementType: 'all', stylers: [{ visibility: 'off' }] },
+            { featureType: 'poi.place_of_worship', elementType: 'all', stylers: [{ visibility: 'off' }] },
+            { featureType: 'poi.school', elementType: 'all', stylers: [{ visibility: 'off' }] },
+            { featureType: 'poi.sports_complex', elementType: 'all', stylers: [{ visibility: 'off' }] },
+            { featureType: 'transit', elementType: 'all', stylers: [{ visibility: 'off' }] }
+          ]
+        });
+      })
+      .catch((error) => {
+        console.error('Failed to load Google Maps:', error);
+      });
 
-      document.head.appendChild(script);
-
-      return () => {
-        // Cleanup script when component unmounts
-        const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
-        if (existingScript) {
-          document.head.removeChild(existingScript);
-        }
-      };
+    return () => {
+      isCancelled = true;
     };
-
-    loadGoogleMaps();
   }, []);
 
   return (
