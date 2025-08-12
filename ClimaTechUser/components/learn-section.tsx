@@ -5,7 +5,7 @@ import { Play, CheckCircle, MapPin, MessageCircle, Cloud, Navigation, Sparkles, 
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
-export default function LearnSection() {
+export default function LearnSection({ onGoToMap, onOpenChatOnMap }: { onGoToMap: () => void; onOpenChatOnMap: () => void }) {
   const [completedSteps, setCompletedSteps] = useState<number[]>([])
 
   const toggleStep = (stepIndex: number) => {
@@ -93,7 +93,7 @@ export default function LearnSection() {
   ]
 
   return (
-    <div className="min-h-full bg-gradient-to-br from-blue-50 via-white to-green-50 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 p-6 pb-24">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
@@ -210,11 +210,14 @@ export default function LearnSection() {
             Now that you know the basics, start exploring! Click on the map, chat with the AI, or check the weather.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button className="bg-white text-blue-600 hover:bg-gray-100 font-semibold">
+            <Button className="bg-white text-blue-600 hover:bg-gray-100 font-semibold" onClick={onGoToMap}>
               Go to Map
               <MapPin className="ml-2 h-4 w-4" />
             </Button>
-            <Button className="bg-white/20 text-white hover:bg-white/30 font-semibold border border-white/30">
+            <Button
+              className="bg-white/20 text-white hover:bg-white/30 font-semibold border border-white/30"
+              onClick={onOpenChatOnMap}
+            >
               Open AI Chat
               <MessageCircle className="ml-2 h-4 w-4" />
             </Button>

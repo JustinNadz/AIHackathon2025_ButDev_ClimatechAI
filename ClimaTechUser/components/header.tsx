@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Menu, X, MapPin, Sparkles, User, Settings, HelpCircle, LogOut, LogIn, Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -15,6 +15,22 @@ export default function Header({ activeSection, onSectionChange }: HeaderProps) 
   const [isNotificationOpen, setIsNotificationOpen] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(true) // Mock login state
   const [notificationCount, setNotificationCount] = useState(3) // Mock notification count
+
+  const profileMenuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!isProfileOpen) return
+
+    const handleDocumentMouseDown = (event: PointerEvent) => {
+      const targetNode = event.target as Node
+      if (profileMenuRef.current && !profileMenuRef.current.contains(targetNode)) {
+        setIsProfileOpen(false)
+      }
+    }
+
+    document.addEventListener("pointerdown", handleDocumentMouseDown)
+    return () => document.removeEventListener("pointerdown", handleDocumentMouseDown)
+  }, [isProfileOpen])
 
   const handleSectionClick = (section: string) => {
     onSectionChange(section)
@@ -136,7 +152,7 @@ export default function Header({ activeSection, onSectionChange }: HeaderProps) 
             </div>
 
             {/* Profile Dropdown */}
-            <div className="relative">
+            <div className="relative" ref={profileMenuRef}>
               <button
                 onClick={() => setIsProfileOpen(!isProfileOpen)}
                 className="flex items-center space-x-2 p-2 rounded-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg hover:shadow-xl transition-all duration-300"
