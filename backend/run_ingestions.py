@@ -34,11 +34,11 @@ def main():
         print("  python run_ingestions.py seismic data/earthquakes.csv --validate-only")
         print("\nFlood options:")
         print("  --risk-column <name>        - Specify risk column name (default: 'Var')")
-        print("  --max-coordinates <number>  - Max coordinates before simplification (default: 1000)")
-        print("  --simplify-tolerance <float> - Simplification tolerance (default: 0.0001)")
         print("  --chunk-size <number>       - Number of features per chunk (default: 1000)")
         print("  --batch-size <number>       - Number of records per batch (default: 100)")
         print("  --optimized                 - Use optimized settings for large datasets (2M+ points)")
+        print("  --split-geometries          - Split large multipolygons into smaller pieces")
+        print("  --max-coords-per-polygon <number> - Max coordinates per polygon when splitting (default: 10000)")
         print("\nWeather modes:")
         print("  cities    - Ingest weather for major Philippine cities")
         print("  single    - Ingest weather for a single location")
@@ -60,35 +60,35 @@ def main():
             
             # Parse additional options
             risk_column = None
-            max_coordinates = 1000
-            simplify_tolerance = 0.0001
             chunk_size = 1000
             batch_size = 100
             use_optimized = False
+            split_geometries = False
+            max_coords_per_polygon = 10000
             
             for i, arg in enumerate(sys.argv[3:], 3):
                 if arg == "--risk-column" and i + 1 < len(sys.argv):
                     risk_column = sys.argv[i + 1]
-                elif arg == "--max-coordinates" and i + 1 < len(sys.argv):
-                    max_coordinates = int(sys.argv[i + 1])
-                elif arg == "--simplify-tolerance" and i + 1 < len(sys.argv):
-                    simplify_tolerance = float(sys.argv[i + 1])
                 elif arg == "--chunk-size" and i + 1 < len(sys.argv):
                     chunk_size = int(sys.argv[i + 1])
                 elif arg == "--batch-size" and i + 1 < len(sys.argv):
                     batch_size = int(sys.argv[i + 1])
                 elif arg == "--optimized":
                     use_optimized = True
+                elif arg == "--split-geometries":
+                    split_geometries = True
+                elif arg == "--max-coords-per-polygon" and i + 1 < len(sys.argv):
+                    max_coords_per_polygon = int(sys.argv[i + 1])
             
             # Set default risk column for flood data
             if not risk_column:
                 risk_column = "Var"
             
             print(f"🌊 Ingesting flood data with risk column: {risk_column}")
-            print(f"   Max coordinates: {max_coordinates}")
-            print(f"   Simplify tolerance: {simplify_tolerance}")
             print(f"   Chunk size: {chunk_size}")
             print(f"   Batch size: {batch_size}")
+            if split_geometries:
+                print(f"   Geometry splitting enabled (max {max_coords_per_polygon} coords per polygon)")
             if use_optimized:
                 print(f"   Using optimized mode for large datasets")
             
@@ -99,16 +99,15 @@ def main():
                     file_path=file_path,
                     risk_column=risk_column,
                     default_risk=2.0,
-                    max_coordinates=max_coordinates,
-                    simplify_tolerance=simplify_tolerance
+                    max_coordinates_per_polygon=max_coords_per_polygon
                 )
             else:
                 ingestor.ingest_shp(
                     file_path=file_path,
                     risk_column=risk_column,
                     default_risk=2.0,
-                    max_coordinates=max_coordinates,
-                    simplify_tolerance=simplify_tolerance
+                    split_large_geometries=split_geometries,
+                    max_coordinates_per_polygon=max_coords_per_polygon
                 )
             
         elif data_type == "landslide":

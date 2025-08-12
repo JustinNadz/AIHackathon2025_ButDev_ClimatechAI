@@ -1,6 +1,6 @@
 import geopandas as gpd
 import pandas as pd
-from shapely.geometry import shape
+from shapely.geometry import shape, MultiPolygon, Polygon
 from db.base import SessionLocal
 from db.queries import add_flood_data
 import math
@@ -19,7 +19,7 @@ class FloodIngestor:
         
         Args:
             chunk_size: Number of features to process in each chunk (default: 1000)
-            batch_size: Number of database inserts per batch commit (default: 100)
+            batch_size: Number of database inserts per batch (default: 100)
         """
         self.chunk_size = chunk_size
         self.batch_size = batch_size
@@ -28,6 +28,49 @@ class FloodIngestor:
     def __del__(self):
         if hasattr(self, 'db'):
             self.db.close()
+    
+    def _split_large_multipolygon(self, multipolygon, max_coordinates_per_polygon=10000):
+        """
+        Split a large multipolygon into smaller multipolygons
+        
+        Args:
+            multipolygon: Shapely MultiPolygon object
+            max_coordinates_per_polygon: Maximum coordinates per resulting polygon
+            
+        Returns:
+            List of smaller MultiPolygon objects
+        """
+        if not isinstance(multipolygon, MultiPolygon):
+            # If it's a single polygon, wrap it in a MultiPolygon
+            if hasattr(multipolygon, 'exterior'):
+                multipolygon = MultiPolygon([multipolygon])
+            else:
+                return [multipolygon]
+        
+        result_multipolygons = []
+        current_polygons = []
+        current_coord_count = 0
+        
+        for polygon in multipolygon.geoms:
+            # Count coordinates in this polygon
+            polygon_coords = len(list(polygon.exterior.coords))
+            for interior in polygon.interiors:
+                polygon_coords += len(list(interior.coords))
+            
+            # If adding this polygon would exceed the limit, create a new multipolygon
+            if current_coord_count + polygon_coords > max_coordinates_per_polygon and current_polygons:
+                result_multipolygons.append(MultiPolygon(current_polygons))
+                current_polygons = [polygon]
+                current_coord_count = polygon_coords
+            else:
+                current_polygons.append(polygon)
+                current_coord_count += polygon_coords
+        
+        # Add the last group of polygons
+        if current_polygons:
+            result_multipolygons.append(MultiPolygon(current_polygons))
+        
+        return result_multipolygons
     
     def _simplify_geometry_if_needed(self, geometry, max_coordinates=1000, tolerance=0.0001):
         """
@@ -97,7 +140,7 @@ class FloodIngestor:
         return geometry
 
     def _process_chunk(self, chunk_df: pd.DataFrame, risk_column: str, default_risk: float,
-                      max_coordinates: int, simplify_tolerance: float) -> Tuple[int, int]:
+                      split_large_geometries: bool = True, max_coordinates_per_polygon: int = 10000) -> Tuple[int, int]:
         """
         Process a chunk of data and return success/failure counts
         
@@ -105,8 +148,8 @@ class FloodIngestor:
             chunk_df: DataFrame chunk to process
             risk_column: Column name containing risk values
             default_risk: Default risk value if risk_column is not provided
-            max_coordinates: Maximum number of coordinates before simplification
-            simplify_tolerance: Simplification tolerance
+            split_large_geometries: Whether to split large multipolygons
+            max_coordinates_per_polygon: Maximum coordinates per polygon when splitting
             
         Returns:
             Tuple of (successful_ingestions, failed_ingestions)
@@ -117,16 +160,8 @@ class FloodIngestor:
         
         for idx, row in chunk_df.iterrows():
             try:
-                # Get the geometry and simplify if needed
+                # Get the geometry directly without simplification
                 geometry = row.geometry
-                simplified_geometry = self._simplify_geometry_if_needed(
-                    geometry, 
-                    max_coordinates=max_coordinates, 
-                    tolerance=simplify_tolerance
-                )
-                
-                # Extract geometry as WKT
-                geometry_wkt = simplified_geometry.wkt
                 
                 # Extract risk level
                 if risk_column in chunk_df.columns:
@@ -141,14 +176,36 @@ class FloodIngestor:
                 else:
                     risk_level = default_risk
                 
-                # Add to batch
-                batch_data.append((geometry_wkt, risk_level))
-                
-                # Commit batch if it reaches batch_size
-                if len(batch_data) >= self.batch_size:
-                    self._commit_batch(batch_data)
-                    successful_ingestions += len(batch_data)
-                    batch_data = []
+                # Split large multipolygons if enabled
+                if split_large_geometries:
+                    split_geometries = self._split_large_multipolygon(
+                        geometry, 
+                        max_coordinates_per_polygon=max_coordinates_per_polygon
+                    )
+                    
+                    if len(split_geometries) > 1:
+                        logger.info(f"🔄 Row {idx}: Split large multipolygon into {len(split_geometries)} smaller pieces")
+                    
+                    # Add each split geometry to the batch
+                    for split_geom in split_geometries:
+                        geometry_wkt = split_geom.wkt
+                        batch_data.append((geometry_wkt, risk_level))
+                        
+                        # Commit batch if it reaches batch_size
+                        if len(batch_data) >= self.batch_size:
+                            self._commit_batch(batch_data)
+                            successful_ingestions += len(batch_data)
+                            batch_data = []
+                else:
+                    # Use original approach - single geometry per row
+                    geometry_wkt = geometry.wkt
+                    batch_data.append((geometry_wkt, risk_level))
+                    
+                    # Commit batch if it reaches batch_size
+                    if len(batch_data) >= self.batch_size:
+                        self._commit_batch(batch_data)
+                        successful_ingestions += len(batch_data)
+                        batch_data = []
                     
             except Exception as e:
                 logger.error(f"❌ Error processing row {idx}: {e}")
@@ -190,8 +247,8 @@ class FloodIngestor:
         logger.debug(f"✅ Committed batch of {len(batch_data)} records")
 
     def ingest_shp(self, file_path: str, risk_column: str = None, default_risk: float = 0.0, 
-                   max_coordinates: int = 1000, simplify_tolerance: float = 0.0001,
-                   chunk_size: Optional[int] = None):
+                   chunk_size: Optional[int] = None, split_large_geometries: bool = True,
+                   max_coordinates_per_polygon: int = 10000):
         """
         Ingest shapefile data into PostgreSQL with PostGIS using chunked processing
         
@@ -199,9 +256,9 @@ class FloodIngestor:
             file_path: Path to the shapefile
             risk_column: Column name containing risk values (1-3 scale, default: "Var")
             default_risk: Default risk value if risk_column is not provided (default: 2.0)
-            max_coordinates: Maximum number of coordinates before simplification (default: 1000)
-            simplify_tolerance: Simplification tolerance - higher values = more simplified (default: 0.0001)
             chunk_size: Override default chunk size for this ingestion
+            split_large_geometries: Whether to split large multipolygons into smaller pieces
+            max_coordinates_per_polygon: Maximum coordinates per polygon when splitting (default: 10000)
         """
         if chunk_size is None:
             chunk_size = self.chunk_size
@@ -209,6 +266,8 @@ class FloodIngestor:
         try:
             logger.info(f"🔄 Starting chunked ingestion of {file_path}")
             logger.info(f"📊 Chunk size: {chunk_size}, Batch size: {self.batch_size}")
+            if split_large_geometries:
+                logger.info(f"✂️ Large geometry splitting enabled (max {max_coordinates_per_polygon} coords per polygon)")
             
             # Read the shapefile
             gdf = gpd.read_file(file_path)
@@ -249,8 +308,8 @@ class FloodIngestor:
                     chunk_df=chunk_df,
                     risk_column=risk_column,
                     default_risk=default_risk,
-                    max_coordinates=max_coordinates,
-                    simplify_tolerance=simplify_tolerance
+                    split_large_geometries=split_large_geometries,
+                    max_coordinates_per_polygon=max_coordinates_per_polygon
                 )
                 
                 total_successful += successful
@@ -260,7 +319,7 @@ class FloodIngestor:
                 
                 # Progress update
                 progress = ((chunk_idx + 1) / num_chunks) * 100
-                logger.info(f"📊 Overall progress: {progress:.1f}% ({total_successful + total_failed}/{total_features})")
+                logger.info(f"📊 Overall progress: {progress:.1f}% ({total_successful + total_failed} total records processed)")
             
             logger.info(f"\n🎉 Ingestion complete!")
             logger.info(f"✅ Successfully ingested {total_successful} flood data records")
@@ -282,24 +341,24 @@ class FloodIngestor:
             raise
 
     def ingest_shp_optimized(self, file_path: str, risk_column: str = None, default_risk: float = 0.0,
-                           max_coordinates: int = 1000, simplify_tolerance: float = 0.0001,
-                           chunk_size: Optional[int] = None):
+                           chunk_size: Optional[int] = None, max_coordinates_per_polygon: int = 5000):
         """
         Optimized version for very large datasets (2M+ points)
-        Uses larger chunks and more aggressive simplification
+        Uses larger chunks and more aggressive splitting
         """
         if chunk_size is None:
             chunk_size = 5000  # Larger chunks for big datasets
             
         logger.info(f"🚀 Starting optimized ingestion for large dataset")
         logger.info(f"📊 Using larger chunk size: {chunk_size}")
+        logger.info(f"✂️ Using smaller polygon size limit: {max_coordinates_per_polygon}")
         
-        # Use more aggressive simplification for large datasets
+        # Use optimized approach with splitting
         return self.ingest_shp(
             file_path=file_path,
             risk_column=risk_column,
             default_risk=default_risk,
-            max_coordinates=max_coordinates,
-            simplify_tolerance=simplify_tolerance * 2,  # More aggressive simplification
-            chunk_size=chunk_size
+            chunk_size=chunk_size,
+            split_large_geometries=True,
+            max_coordinates_per_polygon=max_coordinates_per_polygon
         )
