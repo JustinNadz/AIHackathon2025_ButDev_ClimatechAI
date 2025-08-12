@@ -86,32 +86,7 @@ function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-blue-200 p-4">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton className="text-blue-700 hover:bg-blue-50">
-                  <User className="w-4 h-4" />
-                  <span>Admin User</span>
-                  <ChevronDown className="ml-auto w-4 h-4" />
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" className="w-[--radix-popper-anchor-width]">
-                <DropdownMenuItem>
-                  <span>Profile Settings</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <span>Preferences</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <span>Sign Out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
+
     </Sidebar>
   )
 }

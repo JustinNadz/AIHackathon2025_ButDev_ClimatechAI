@@ -116,12 +116,11 @@ export function StatusCards() {
       <Card className="border-blue-200">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-blue-700">Voice Assistant</CardTitle>
-          <Mic className="h-4 w-4 text-blue-600" />
         </CardHeader>
         <CardContent>
           <Link href="/assistant">
             <Button className="w-full bg-blue-600 hover:bg-blue-700">
-              <Mic className="h-4 w-4 mr-2" /> Open Assistant
+              <Mic className="h-4 w-4 mr-2" /> C.L.I.M.A
             </Button>
           </Link>
         </CardContent>
