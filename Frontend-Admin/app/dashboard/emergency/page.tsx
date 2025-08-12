@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import EmergencyChat from "@/components/EmergencyChat"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -540,9 +541,11 @@ export default function EmergencyProtocolsPage() {
           </div>
         </div>
 
-        {/* Emergency Protocols Tabs */}
+        {/* Emergency Protocols Tabs + Conversational Chat */}
         <Tabs defaultValue="protocols" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 bg-blue-50">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div className="xl:col-span-2">
+              <TabsList className="grid w-full grid-cols-5 bg-blue-50">
             <TabsTrigger value="protocols" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
               Response Protocols
             </TabsTrigger>
@@ -558,7 +561,12 @@ export default function EmergencyProtocolsPage() {
             <TabsTrigger value="messaging" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
               Alert Messaging
             </TabsTrigger>
-          </TabsList>
+              </TabsList>
+            </div>
+            <div className="xl:col-span-1">
+              <EmergencyChat />
+            </div>
+          </div>
 
           {/* Response Protocols Tab */}
           <TabsContent value="protocols" className="space-y-6">
