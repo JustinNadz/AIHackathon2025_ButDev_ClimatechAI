@@ -27,13 +27,21 @@ export interface HazardData {
 }
 
 export interface AssistantResponse {
-  location: LocationData
+  location: LocationData | null
   question: string
   hazards: HazardData
   response: string
   model_used: string
   context_provided: string[]
   timestamp: string
+  detected_city?: {
+    name: string
+    coords: {
+      lat: number
+      lng: number
+    }
+  } | null
+  is_floating_response?: boolean
 }
 
 /**
@@ -144,7 +152,29 @@ export async function getSeismicData(hours?: number, minMagnitude?: number, maxM
   
   const response = await fetch(`${BACKEND_URL}/api/seismic-data?${params}`)
   if (!response.ok) {
-    throw new Error(`Seismic API error: ${response.status}`)
+    throw new Error(`Failed to fetch seismic data: ${response.statusText}`)
   }
   return await response.json()
+}
+
+// Get weather data for frontend cities from backend
+export async function getFrontendCitiesWeather() {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/weather-data/frontend-cities`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    })
+    
+    if (!response.ok) {
+      throw new Error(`Backend weather error: ${response.status} - ${response.statusText}`)
+    }
+    
+    const data = await response.json()
+    return data
+  } catch (error) {
+    console.error('Failed to fetch frontend cities weather:', error)
+    throw error
+  }
 } 

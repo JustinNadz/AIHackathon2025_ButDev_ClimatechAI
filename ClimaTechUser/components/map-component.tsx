@@ -242,6 +242,7 @@ export default function MapComponent({ onLocationSelect, selectedLocation }: Map
                 <div>
                   <div style="font-weight: 600; font-size: 16px; color: #1f2937;">${city.name}</div>
                   <div style="font-size: 12px; color: #6b7280;">${data.condition || data.description}</div>
+                  ${data.source ? `<div style="font-size: 10px; color: #9ca3af;">Source: ${data.source === 'backend_database' ? 'Live Data' : 'Generated'}</div>` : ''}
                 </div>
               </div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; color: #374151;">
@@ -257,6 +258,28 @@ export default function MapComponent({ onLocationSelect, selectedLocation }: Map
                   <span style="font-weight: 500;">Wind:</span>
                   <span style="margin-left: 4px; color: #059669;">${data.windSpeed != null ? `${data.windSpeed} km/h` : "N/A"}</span>
                 </div>
+                ${data.rainfall != null && data.rainfall > 0 ? `
+                <div style="display: flex; align-items: center;">
+                  <span style="font-weight: 500;">Rainfall:</span>
+                  <span style="margin-left: 4px; color: #0ea5e9;">${data.rainfall}mm/h</span>
+                </div>
+                ` : ''}
+                ${data.pressure != null ? `
+                <div style="display: flex; align-items: center;">
+                  <span style="font-weight: 500;">Pressure:</span>
+                  <span style="margin-left: 4px; color: #8b5cf6;">${data.pressure}mb</span>
+                </div>
+                ` : ''}
+                ${data.recorded_at ? `
+                <div style="grid-column: 1 / -1; font-size: 10px; color: #9ca3af; margin-top: 4px;">
+                  Updated: ${new Date(data.recorded_at).toLocaleString()}
+                </div>
+                ` : ''}
+                ${data.station_name ? `
+                <div style="grid-column: 1 / -1; font-size: 10px; color: #9ca3af;">
+                  Station: ${data.station_name}
+                </div>
+                ` : ''}
               </div>
             </div>
           `

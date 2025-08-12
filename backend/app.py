@@ -348,7 +348,20 @@ def enhanced_assistant():
                         weather_response += f"\n💨 **Wind Speed:** {wind_speed:.1f}km/h"
                     
                     if recorded_time:
-                        weather_response += f"\n⏰ **Last Updated:** {recorded_time.strftime('%B %d, %Y at %I:%M %p')}"
+                        try:
+                            # recorded_time is already an ISO string from the database query
+                            # Parse it back to datetime for formatting, or use as-is
+                            from datetime import datetime
+                            if isinstance(recorded_time, str):
+                                # Parse ISO string back to datetime
+                                parsed_time = datetime.fromisoformat(recorded_time.replace('Z', '+00:00') if recorded_time.endswith('Z') else recorded_time)
+                                weather_response += f"\n⏰ **Last Updated:** {parsed_time.strftime('%B %d, %Y at %I:%M %p')}"
+                            else:
+                                # If it's already a datetime object
+                                weather_response += f"\n⏰ **Last Updated:** {recorded_time.strftime('%B %d, %Y at %I:%M %p')}"
+                        except (ValueError, TypeError):
+                            # If parsing fails, just show the raw timestamp
+                            weather_response += f"\n⏰ **Last Updated:** {recorded_time}"
                     
                     weather_response += f"""
 
