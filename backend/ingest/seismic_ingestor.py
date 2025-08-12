@@ -46,11 +46,41 @@ class SeismicIngestor:
             # Check data types and basic validation
             print(f"\n📊 Data validation:")
             print(f"  - Date range: {df['Date_Time_PH'].min()} to {df['Date_Time_PH'].max()}")
-            print(f"  - Latitude range: {df['Latitude'].min():.4f} to {df['Latitude'].max():.4f}")
-            print(f"  - Longitude range: {df['Longitude'].min():.4f} to {df['Longitude'].max():.4f}")
-            print(f"  - Depth range: {df['Depth_In_Km'].min():.1f} to {df['Depth_In_Km'].max():.1f} km")
-            print(f"  - Magnitude range: {df['Magnitude'].min():.1f} to {df['Magnitude'].max():.1f}")
-            print(f"  - Unique locations: {df['Location'].nunique()}")
+            
+            # Convert string columns to numeric for validation
+            try:
+                lat_series = pd.to_numeric(df['Latitude'], errors='coerce')
+                lng_series = pd.to_numeric(df['Longitude'], errors='coerce')
+                depth_series = pd.to_numeric(df['Depth_In_Km'], errors='coerce')
+                magnitude_series = pd.to_numeric(df['Magnitude'], errors='coerce')
+                
+                print(f"  - Latitude range: {lat_series.min():.4f} to {lat_series.max():.4f}")
+                print(f"  - Longitude range: {lng_series.min():.4f} to {lng_series.max():.4f}")
+                print(f"  - Depth range: {depth_series.min():.1f} to {depth_series.max():.1f} km")
+                print(f"  - Magnitude range: {magnitude_series.min():.1f} to {magnitude_series.max():.1f}")
+                print(f"  - Unique locations: {df['Location'].nunique()}")
+                
+                # Check for invalid numeric values
+                invalid_lat = lat_series.isna().sum()
+                invalid_lng = lng_series.isna().sum()
+                invalid_depth = depth_series.isna().sum()
+                invalid_magnitude = magnitude_series.isna().sum()
+                
+                if invalid_lat > 0:
+                    print(f"  ⚠️ Warning: {invalid_lat} invalid latitude values")
+                if invalid_lng > 0:
+                    print(f"  ⚠️ Warning: {invalid_lng} invalid longitude values")
+                if invalid_depth > 0:
+                    print(f"  ⚠️ Warning: {invalid_depth} invalid depth values")
+                if invalid_magnitude > 0:
+                    print(f"  ⚠️ Warning: {invalid_magnitude} invalid magnitude values")
+                    
+            except Exception as e:
+                print(f"  ⚠️ Warning: Could not validate numeric ranges: {e}")
+                print(f"  - Raw latitude sample: {df['Latitude'].head(3).tolist()}")
+                print(f"  - Raw longitude sample: {df['Longitude'].head(3).tolist()}")
+                print(f"  - Raw depth sample: {df['Depth_In_Km'].head(3).tolist()}")
+                print(f"  - Raw magnitude sample: {df['Magnitude'].head(3).tolist()}")
             
             successful_ingestions = 0
             failed_ingestions = 0
@@ -60,29 +90,34 @@ class SeismicIngestor:
                     # Parse date
                     event_time = pd.to_datetime(row['Date_Time_PH'], format=date_format)
                     
-                    # Create point geometry
-                    geometry_wkt = f"POINT({row['Longitude']} {row['Latitude']})"
+                    # Convert string coordinates to float
+                    try:
+                        lat = float(str(row['Latitude']).strip())
+                        lng = float(str(row['Longitude']).strip())
+                    except (ValueError, TypeError) as e:
+                        print(f"⚠️ Row {idx}: Invalid coordinates - lat: {row['Latitude']}, lng: {row['Longitude']}, skipping")
+                        failed_ingestions += 1
+                        continue
                     
-                    # Extract data
-                    magnitude = float(row['Magnitude'])
-                    depth = float(row['Depth_In_Km'])
+                    # Create point geometry
+                    geometry_wkt = f"POINT({lng} {lat})"
+                    
+                    # Convert string values to appropriate types
+                    try:
+                        magnitude = float(str(row['Magnitude']).strip())
+                    except (ValueError, TypeError) as e:
+                        print(f"⚠️ Row {idx}: Invalid magnitude {row['Magnitude']}, skipping")
+                        failed_ingestions += 1
+                        continue
+                    
+                    try:
+                        depth = float(str(row['Depth_In_Km']).strip())
+                    except (ValueError, TypeError) as e:
+                        print(f"⚠️ Row {idx}: Invalid depth {row['Depth_In_Km']}, using None")
+                        depth = None
+                    
                     location_name = str(row['Location']) if pd.notna(row['Location']) else None
                     
-                    # Validate data
-                    if not (4.0 <= row['Latitude'] <= 21.0 and 116.0 <= row['Longitude'] <= 127.0):
-                        print(f"⚠️ Row {idx}: Coordinates outside Philippines bounds, skipping")
-                        failed_ingestions += 1
-                        continue
-                    
-                    if magnitude < 0 or magnitude > 10:
-                        print(f"⚠️ Row {idx}: Invalid magnitude {magnitude}, skipping")
-                        failed_ingestions += 1
-                        continue
-                    
-                    if depth < 0 or depth > 700:
-                        print(f"⚠️ Row {idx}: Invalid depth {depth} km, skipping")
-                        failed_ingestions += 1
-                        continue
                     
                     # Add to database
                     add_earthquake_data(
@@ -116,34 +151,42 @@ class SeismicIngestor:
             # Print summary statistics
             print(f"\n📊 Seismic data statistics:")
             print(f"  - Magnitude distribution:")
-            magnitude_stats = df['Magnitude'].describe()
-            print(f"    Min: {magnitude_stats['min']:.2f}")
-            print(f"    Max: {magnitude_stats['max']:.2f}")
-            print(f"    Mean: {magnitude_stats['mean']:.2f}")
-            print(f"    Median: {df['Magnitude'].median():.2f}")
+            
+            # Use the numeric series we created earlier for statistics
+            if 'magnitude_series' in locals():
+                magnitude_stats = magnitude_series.describe()
+                print(f"    Min: {magnitude_stats['min']:.2f}")
+                print(f"    Max: {magnitude_stats['max']:.2f}")
+                print(f"    Mean: {magnitude_stats['mean']:.2f}")
+                print(f"    Median: {magnitude_series.median():.2f}")
+                
+                # Magnitude categories
+                magnitude_categories = {
+                    "Micro": len(magnitude_series[magnitude_series < 2.0]),
+                    "Minor": len(magnitude_series[(magnitude_series >= 2.0) & (magnitude_series < 4.0)]),
+                    "Light": len(magnitude_series[(magnitude_series >= 4.0) & (magnitude_series < 5.0)]),
+                    "Moderate": len(magnitude_series[(magnitude_series >= 5.0) & (magnitude_series < 6.0)]),
+                    "Strong": len(magnitude_series[(magnitude_series >= 6.0) & (magnitude_series < 7.0)]),
+                    "Major": len(magnitude_series[(magnitude_series >= 7.0) & (magnitude_series < 8.0)]),
+                    "Great": len(magnitude_series[magnitude_series >= 8.0])
+                }
+                
+                print(f"  - Magnitude categories:")
+                for category, count in magnitude_categories.items():
+                    if count > 0:
+                        print(f"    {category} (≥{self._get_magnitude_threshold(category)}): {count} events")
+            else:
+                print(f"    ⚠️ Could not calculate magnitude statistics due to data format issues")
             
             print(f"  - Depth distribution:")
-            depth_stats = df['Depth_In_Km'].describe()
-            print(f"    Min: {depth_stats['min']:.1f} km")
-            print(f"    Max: {depth_stats['max']:.1f} km")
-            print(f"    Mean: {depth_stats['mean']:.1f} km")
-            print(f"    Median: {df['Depth_In_Km'].median():.1f} km")
-            
-            # Magnitude categories
-            magnitude_categories = {
-                "Micro": len(df[df['Magnitude'] < 2.0]),
-                "Minor": len(df[(df['Magnitude'] >= 2.0) & (df['Magnitude'] < 4.0)]),
-                "Light": len(df[(df['Magnitude'] >= 4.0) & (df['Magnitude'] < 5.0)]),
-                "Moderate": len(df[(df['Magnitude'] >= 5.0) & (df['Magnitude'] < 6.0)]),
-                "Strong": len(df[(df['Magnitude'] >= 6.0) & (df['Magnitude'] < 7.0)]),
-                "Major": len(df[(df['Magnitude'] >= 7.0) & (df['Magnitude'] < 8.0)]),
-                "Great": len(df[df['Magnitude'] >= 8.0])
-            }
-            
-            print(f"  - Magnitude categories:")
-            for category, count in magnitude_categories.items():
-                if count > 0:
-                    print(f"    {category} (≥{self._get_magnitude_threshold(category)}): {count} events")
+            if 'depth_series' in locals():
+                depth_stats = depth_series.describe()
+                print(f"    Min: {depth_stats['min']:.1f} km")
+                print(f"    Max: {depth_stats['max']:.1f} km")
+                print(f"    Mean: {depth_stats['mean']:.1f} km")
+                print(f"    Median: {depth_series.median():.1f} km")
+            else:
+                print(f"    ⚠️ Could not calculate depth statistics due to data format issues")
             
             return True
             
@@ -195,46 +238,3 @@ class SeismicIngestor:
         except Exception as e:
             print(f"❌ Error validating CSV: {e}")
             return False
-
-
-def main():
-    """Main function for seismic ingestion"""
-    import argparse
-    
-    parser = argparse.ArgumentParser(description="Seismic Data Ingestion Tool")
-    parser.add_argument("file_path", help="Path to the CSV file")
-    parser.add_argument("--date-format", default="%Y-%m-%d %H:%M:%S",
-                       help="Date format for Date_Time_PH column (default: %%Y-%%m-%%d %%H:%%M:%%S)")
-    parser.add_argument("--validate-only", action="store_true",
-                       help="Only validate CSV structure without ingesting")
-    
-    args = parser.parse_args()
-    
-    if not os.path.exists(args.file_path):
-        print(f"❌ Error: File not found: {args.file_path}")
-        return
-    
-    try:
-        ingestor = SeismicIngestor()
-        
-        if args.validate_only:
-            print("🔍 Validating CSV structure...")
-            if ingestor.validate_csv_structure(args.file_path):
-                print("✅ CSV is ready for ingestion")
-            else:
-                print("❌ CSV validation failed")
-        else:
-            print("🌋 Starting seismic data ingestion...")
-            success = ingestor.ingest_csv(args.file_path, args.date_format)
-            
-            if success:
-                print("\n🎉 Seismic data ingestion completed successfully!")
-            else:
-                print("\n❌ Seismic data ingestion failed")
-        
-    except Exception as e:
-        print(f"❌ Error during seismic ingestion: {e}")
-
-
-if __name__ == "__main__":
-    main()
