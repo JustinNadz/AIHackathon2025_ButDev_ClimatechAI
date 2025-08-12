@@ -3,14 +3,13 @@
 import { DashboardLayout } from "@/components/dashboard-layout"
 import { StatusCards } from "@/components/status-cards"
 import { InteractiveMap } from "@/components/interactive-map"
-import { LiveDataFeed } from "@/components/live-data-feed"
+
 import { AIForecastingPanel } from "@/components/ai-forecasting-panel"
 import { useState } from "react"
 import VoiceAssistant from "@/components/VoiceAssistant"
 import { EmergencyAlerts } from "@/components/emergency-alerts"
 
 export default function DashboardPage() {
-  const [selectedView, setSelectedView] = useState("overview")
   const [assistantOpen, setAssistantOpen] = useState(false)
 
   return (
@@ -33,10 +32,7 @@ export default function DashboardPage() {
         </div>
             <AIForecastingPanel />
 
-        {/* Live Data Feed */}
-        <div className="w-full min-w-0">
-          <LiveDataFeed />
-        </div>
+
         <VoiceAssistant open={assistantOpen} onOpenChange={setAssistantOpen} />
       </div>
     </DashboardLayout>
