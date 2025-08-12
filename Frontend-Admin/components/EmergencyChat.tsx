@@ -20,7 +20,7 @@ export default function EmergencyChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([{
     id: 'assistant-welcome',
     role: "assistant",
-    content: "Hi, I’m your emergency assistant. Tell me your location or share coordinates, and I’ll guide you with the right protocol, contacts, and nearest evacuation center.",
+    content: "Hi! I’m C.L.I.M.A — your ClimaTech assistant. Provide coordinates and I’ll check flood risk, then guide you to the right protocol, LGU contacts, and the nearest evacuation center.",
     time: "" // set on mount to avoid SSR/client mismatch
   }])
   const [input, setInput] = useState("")
@@ -128,7 +128,7 @@ export default function EmergencyChat() {
         </div>
         {/* Chat box (messages + input in one bordered box) */}
         <div className="rounded-lg border bg-white/60 overflow-hidden flex flex-col min-h-full sm:h-[480px]"
-        style={{ height: '690px' }}>
+        style={{ height: '334px' }}>
           <div ref={listRef} className="h-full flex-1 overflow-y-auto p-3">
             {messages.map(m => (
               <div key={m.id} className={`mb-3 flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>

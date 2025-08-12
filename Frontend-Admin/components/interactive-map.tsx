@@ -107,14 +107,7 @@ interface BackendWeatherData {
 	recorded_at?: string;
 }
 
-interface LegendItem {
-	id: string;
-	label: string;
-	color: string;
-	icon: string;
-	visible: boolean;
-	description: string;
-}
+// Legend UI removed
 
 // Google Maps Component
 interface MapProps {
@@ -1070,49 +1063,7 @@ export function InteractiveMap() {
 		createBackendMarkers();
 	}, [map, backendFloodData, backendLandslideData, backendSeismicData, backendWeatherData, selectedLayer]);
 
-	// Legend items configuration
-	const legendItems: LegendItem[] = [
-		{
-			id: 'high-risk',
-			label: 'High/Critical Risk',
-			color: '#FF0000',
-			icon: 'triangle-alert',
-			visible: true,
-			description: 'High flood risk areas (red zones)'
-		},
-		{
-			id: 'medium-risk',
-			label: 'Medium Risk',
-			color: '#FFA500',
-			icon: 'triangle-alert',
-			visible: true,
-			description: 'Medium flood risk areas (orange zones)'
-		},
-		{
-			id: 'low-risk',
-			label: 'Low Risk',
-			color: '#00FF00',
-			icon: 'triangle-alert',
-			visible: true,
-			description: 'Low flood risk areas (green zones)'
-		},
-		{
-			id: 'weather-stations',
-			label: 'Weather Stations',
-			color: '#3b82f6',
-			icon: 'map-pin',
-			visible: true,
-			description: 'Active weather monitoring stations'
-		},
-		{
-			id: 'flood-animation',
-			label: 'HEC-RAS Flood Simulation',
-			color: '#1e40af',
-			icon: 'droplets',
-			visible: true,
-			description: 'Real-time flood progression simulation (Always Active)'
-		}
-	];
+	// Legend configuration removed
 
 	// Update height when window resizes
 	useEffect(() => {
@@ -2493,85 +2444,7 @@ export function InteractiveMap() {
 						</Button>
 					</div>
 
-					{/* Fullscreen Layer Toolbar */}
-					<div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 w-full max-w-4xl px-4">
-						<div className="flex flex-col gap-3">
-							{/* Layer Buttons */}
-							<div className="flex gap-3 overflow-x-auto p-2 bg-white/80 rounded-lg shadow-md backdrop-blur-sm">
-								{mapLayers.map((layer) => (
-									<Button
-										key={layer.id}
-										variant={selectedLayer === layer.id ? "default" : "outline"}
-										size="sm"
-										onClick={() => setSelectedLayer(layer.id)}
-										className={`${selectedLayer === layer.id ? "bg-blue-600 text-white border-blue-600" : "border-blue-200 text-blue-700 hover:bg-blue-50"} min-w-fit px-4 py-2`}
-									>
-										<layer.icon className="w-4 h-4 mr-2" />
-										<span className="whitespace-nowrap font-medium">{layer.label || 'All'}</span>
-									</Button>
-								))}
-							</div>
-
-							{/* Radius Control */}
-							<div className="flex items-center justify-center gap-3 p-2 bg-white/80 rounded-lg shadow-md backdrop-blur-sm">
-								<label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-									Query Radius:
-								</label>
-								<select
-									value={queryRadius}
-									onChange={(e) => setQueryRadius(Number(e.target.value))}
-									className="px-3 py-1 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-								>
-									<option value={10}>10 km</option>
-									<option value={25}>25 km</option>
-									<option value={50}>50 km</option>
-									<option value={100}>100 km</option>
-									<option value={200}>200 km</option>
-								</select>
-								<span className="text-xs text-gray-500">
-									(for nearby queries)
-								</span>
-							</div>
-
-							{/* Load Data and Clear Map Buttons */}
-							<div className="flex justify-center gap-3">
-								<Button
-									onClick={() => {
-										if (selectedLayer === 'flood' || selectedLayer === 'all') {
-											fetchFloodData()
-										}
-										if (selectedLayer === 'landslide' || selectedLayer === 'all') {
-											fetchLandslideData(currentMapCenter.lat, currentMapCenter.lng, queryRadius)
-										}
-										if (selectedLayer === 'seismic' || selectedLayer === 'all') {
-											fetchSeismicData()
-										}
-										if (selectedLayer === 'weather' || selectedLayer === 'all') {
-											fetchWeatherData(currentMapCenter.lat, currentMapCenter.lng)
-										}
-									}}
-									disabled={isLoadingFloodData || isLoadingLandslideData || isLoadingSeismicData || isLoadingWeather}
-									className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 shadow-lg disabled:opacity-50"
-									size="sm"
-								>
-									<Cloud className="w-4 h-4 mr-2" />
-									{isLoadingFloodData || isLoadingLandslideData || isLoadingSeismicData || isLoadingWeather
-										? 'Loading...'
-										: `Load ${selectedLayer === 'all' ? 'All Data' : selectedLayer.charAt(0).toUpperCase() + selectedLayer.slice(1) + ' Data'}`
-									}
-								</Button>
-
-								<Button
-									onClick={clearMapData}
-									className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 shadow-lg"
-									size="sm"
-								>
-									<Info className="w-4 h-4 mr-2" />
-									Clear Map
-								</Button>
-							</div>
-						</div>
-					</div>
+					{/* Fullscreen Layer Toolbar removed */}
 
 					{/* Full Screen Map */}
 					<div className="w-full h-full">
@@ -2647,146 +2520,12 @@ export function InteractiveMap() {
 						<div className="flex items-center justify-between">
 							<CardTitle className="text-blue-900">Interactive GIS Map</CardTitle>
 
-							{/* Data Info and Legend */}
-							<div className="flex items-center gap-2">
-								{/* Backend Data Count Indicator */}
-								{isLoadingBackendData ? (
-									<Badge variant="secondary" className="text-xs">
-										Loading data...
-									</Badge>
-								) : (
-									<Badge variant="outline" className="text-xs">
-										{backendFloodData.length + backendLandslideData.length + backendSeismicData.length + backendWeatherData.length} data points
-									</Badge>
-								)}
-
-								{/* Legend Dropdown Button */}
-								<DropdownMenu>
-									<DropdownMenuTrigger asChild>
-										<Button variant="outline" size="sm" className="gap-2">
-											<Layers className="h-4 w-4" />
-											Legend
-											<ChevronDown className="h-3 w-3" />
-										</Button>
-									</DropdownMenuTrigger>
-									<DropdownMenuContent align="end" className="w-80">
-										<DropdownMenuLabel className="flex items-center gap-2">
-											<Info className="h-4 w-4" />
-											Map Legend
-										</DropdownMenuLabel>
-										<DropdownMenuSeparator />
-
-										{/* Legend Items */}
-										{legendItems.map((item) => (
-											<div key={item.id} className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-md">
-												<div
-													className="w-4 h-4 rounded border border-gray-300"
-													style={{ backgroundColor: item.color }}
-												/>
-												<div className="flex flex-col flex-1">
-													<span className="text-sm font-medium text-gray-900">{item.label}</span>
-													<span className="text-xs text-gray-500">{item.description}</span>
-												</div>
-											</div>
-										))}
-
-										<DropdownMenuSeparator />
-
-										{/* HEC-RAS Status Info */}
-										<div className="p-3 bg-blue-50 rounded-md mx-2 mb-2">
-											<div className="flex items-center gap-2 mb-1">
-												<Droplets className="h-4 w-4 text-blue-600" />
-												<span className="text-sm font-medium text-blue-900">HEC-RAS Simulation</span>
-											</div>
-											<p className="text-xs text-blue-700">
-												Real-time flood prediction system is always active for high-risk areas
-											</p>
-										</div>
-									</DropdownMenuContent>
-								</DropdownMenu>
-							</div>
+						{/* Data Info and Legend removed */}
 						</div>
 
-						{/* Horizontal Swipeable Buttons */}
-						<div className="relative w-full">
-							<div
-								ref={scrollContainerRef}
-								className="flex gap-3 overflow-x-auto scrollbar-hide py-3 snap-x snap-mandatory"
-								style={{
-									scrollbarWidth: 'none',
-									msOverflowStyle: 'none',
-									WebkitOverflowScrolling: 'touch'
-								}}
-							>
-								{mapLayers.map((layer, index) => (
-									<Button
-										key={layer.id}
-										variant={selectedLayer === layer.id ? "default" : "outline"}
-										size="sm"
-										onClick={() => setSelectedLayer(layer.id)}
-										className={`
-                      flex-shrink-0 snap-start transition-all duration-300 ease-in-out transform
-                      ${selectedLayer === layer.id
-												? "bg-blue-600 text-white shadow-lg scale-105 border-blue-600"
-												: "border-blue-200 text-blue-700 hover:bg-blue-50 hover:scale-102 hover:border-blue-300"
-											}
-                      ${index === 0 ? "ml-1" : ""}
-                      ${index === mapLayers.length - 1 ? "mr-1" : ""}
-                      min-w-fit px-4 py-2 active:scale-95
-                      focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50
-                    `}
-									>
-										<layer.icon className="w-4 h-4 mr-2 flex-shrink-0" />
-										<span className="whitespace-nowrap font-medium">{layer.label}</span>
-									</Button>
-								))}
-							</div>
-							{/* Conditional fade effects for better UX - positioned to not cover buttons */}
-							{canScrollLeft && (
-								<div className="absolute left-0 top-3 bottom-3 w-3 bg-gradient-to-r from-white via-white/80 to-transparent pointer-events-none z-10 transition-opacity duration-300"></div>
-							)}
-							{canScrollRight && (
-								<div className="absolute right-0 top-3 bottom-3 w-3 bg-gradient-to-l from-white via-white/80 to-transparent pointer-events-none z-10 transition-opacity duration-300"></div>
-							)}
-						</div>
+						{/* Horizontal Swipeable Buttons removed */}
 
-						{/* Load Data and Clear Map Buttons */}
-						<div className="flex justify-center gap-3 mt-3">
-							<Button
-								onClick={() => {
-									if (selectedLayer === 'flood' || selectedLayer === 'all') {
-										fetchFloodData()
-									}
-									if (selectedLayer === 'landslide' || selectedLayer === 'all') {
-										fetchLandslideData(currentMapCenter.lat, currentMapCenter.lng, queryRadius)
-									}
-									if (selectedLayer === 'seismic' || selectedLayer === 'all') {
-										fetchSeismicData()
-									}
-									if (selectedLayer === 'weather' || selectedLayer === 'all') {
-										fetchWeatherData(currentMapCenter.lat, currentMapCenter.lng)
-									}
-								}}
-								disabled={isLoadingFloodData || isLoadingLandslideData || isLoadingSeismicData || isLoadingWeather}
-								className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 disabled:opacity-50"
-								size="sm"
-							>
-								<Cloud className="w-4 h-4 mr-2" />
-								{isLoadingFloodData || isLoadingLandslideData || isLoadingSeismicData || isLoadingWeather
-									? 'Loading...'
-									: `Load ${selectedLayer === 'all' ? 'All Data' : selectedLayer.charAt(0).toUpperCase() + selectedLayer.slice(1) + ' Data'}`
-								}
-							</Button>
-
-							<Button
-								onClick={clearMapData}
-								className="bg-red-600 hover:bg-red-700 text-white px-4 py-2"
-								size="sm"
-							>
-								<Info className="w-4 h-4 mr-2" />
-								Clear Map
-							</Button>
-						</div>
+						{/* Load Data and Clear Map Buttons removed */}
 					</div>
 				</CardHeader>
 				<CardContent className="w-full p-2">
@@ -2857,63 +2596,7 @@ export function InteractiveMap() {
 						)}
 					</div>
 
-					{/* Map Controls */}
-					<div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-2">
-						<div className="flex items-center gap-3">
-							<label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-								Query Radius:
-							</label>
-							<select
-								value={queryRadius}
-								onChange={(e) => setQueryRadius(Number(e.target.value))}
-								className="px-2 py-1 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-							>
-								<option value={10}>10 km</option>
-								<option value={25}>25 km</option>
-								<option value={50}>50 km</option>
-								<option value={100}>100 km</option>
-								<option value={200}>200 km</option>
-							</select>
-						</div>
-						<div className="flex gap-2">
-							<Button
-								variant="outline"
-								size="sm"
-								className="border-green-200 text-green-700 bg-transparent"
-								onClick={() => {
-									if (navigator.geolocation) {
-										navigator.geolocation.getCurrentPosition(
-											(position) => {
-												const { latitude, longitude } = position.coords
-												setCurrentMapCenter({ lat: latitude, lng: longitude })
-												if (map) {
-													map.setCenter({ lat: latitude, lng: longitude })
-													map.setZoom(12)
-												}
-											},
-											(error) => {
-												console.error('Error getting current location:', error)
-												alert('Unable to get current location. Please check your browser permissions.')
-											}
-										)
-									} else {
-										alert('Geolocation is not supported by this browser.')
-									}
-								}}
-							>
-								<MapPin className="w-4 h-4 mr-1" />
-								My Location
-							</Button>
-							<Button
-								variant="outline"
-								size="sm"
-								className="border-blue-200 text-blue-700 bg-transparent"
-								onClick={() => setIsFullScreen(true)}
-							>
-								Full Screen View
-							</Button>
-						</div>
-					</div>
+						{/* Map Controls removed */}
 				</CardContent>
 			</Card>
 		</>

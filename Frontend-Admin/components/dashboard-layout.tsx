@@ -122,6 +122,11 @@ function MainContent({ children }: { children: React.ReactNode }) {
           <div className="flex items-center space-x-4">
             <SidebarTrigger className="text-blue-700" />
             <h1 className="text-2xl font-bold text-blue-900">Dashboard Overview</h1>
+            <Link href="/dashboard/reports">
+              <Button variant="outline" className="border-blue-200 text-blue-700 bg-transparent h-8 px-3">
+                Reports
+              </Button>
+            </Link>
           </div>
 
           <div className="flex items-center space-x-4">
