@@ -71,7 +71,7 @@ export default function AssistantPage() {
     // Handle greetings locally with a fixed response
     const lower = text.trim().toLowerCase()
     if (/(^|\b)(hi|hello|hey|good\s*(morning|afternoon|evening))($|\b)/.test(lower)) {
-      const greeting = "Hello, this is ClimaTech AI. How can I help you today?"
+      const greeting = "Hello, this is C.L.I.M.A – Climate Learning & Intelligent Monitoring Assistant. How can I help you today?"
       const assistant: Message = { role: "assistant", content: greeting }
       setMessages((prev) => [...prev, assistant])
       speak(greeting)
@@ -125,9 +125,9 @@ export default function AssistantPage() {
 
   const friendlyReply = (text: string): string => {
     const t = text.toLowerCase()
-    if (t.includes("hello") || t.includes("hi")) return "Hello, this is ClimaTech AI. How can I help you today?"
+    if (t.includes("hello") || t.includes("hi")) return "Hello, this is C.L.I.M.A – Climate Learning & Intelligent Monitoring Assistant. How can I help you today?"
     if (t.includes("weather")) return "For weather, I can fetch the latest conditions and alerts. What city should I check?"
-    if (t.includes("name")) return "I'm your ClimaTech assistant. Nice to meet you!"
+    if (t.includes("name")) return "I'm C.L.I.M.A – Climate Learning & Intelligent Monitoring Assistant. Nice to meet you!"
     return `You said: "${text}". I can help analyze weather, emergencies, and energy data.`
   }
 

@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     }))
 
     // Optional system message
-    const defaultSystem = `You are C.L.I.M.A, ClimaTech's helpful voice assistant. Be concise and helpful.
+    const defaultSystem = `You are C.L.I.M.A (Climate Learning & Intelligent Monitoring Assistant), ClimaTech's helpful voice assistant. Be concise and helpful.
 ${mode === 'voice' ? 'When possible, also output a JSON object for actions the app can take. Use this JSON shape: {"say": string, "action": {"type": string, "params": object}|null}. If you are unsure, set action to null. Examples: Navigate to sections (type: "navigate", params: {"to": "/dashboard"}), Weather query (type: "weather.query", params: {"location": string}). Return plain JSON only.' : ''}`
 
     const systemText = system ? String(system) : defaultSystem
