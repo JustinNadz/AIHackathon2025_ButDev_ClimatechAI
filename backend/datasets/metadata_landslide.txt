@@ -24,5 +24,7 @@ ESRI Shapefile
 This data is licensed under Open Data Commons Open Database License (ODC-ODbL). If you alter or build upon our data, you may only distribute the result under the same license
 (ODC-ODbL).
 
-# Update Frequency
-As needed based on field validation and/or new data inputs
+# Preprocesing steps
+Required heavy chunking, no data is lost but singular data points no longer represent all multipolygon data
+
+Singular data points now represent multiple polygons
