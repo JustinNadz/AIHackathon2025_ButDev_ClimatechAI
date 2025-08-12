@@ -3,7 +3,6 @@
 import type React from "react"
 
 import { useState, useRef, useEffect } from "react"
-import { useChat } from "@ai-sdk/react"
 import { X, Send, Grip, Bot, User, ChevronUp, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,6 +16,12 @@ interface DraggableChatPanelProps {
 
 type PanelState = "minimized" | "half" | "full"
 
+interface Message {
+  id: string
+  role: "user" | "assistant"
+  content: string
+}
+
 export default function DraggableChatPanel({ isOpen, onToggle, selectedLocation }: DraggableChatPanelProps) {
   const [panelState, setPanelState] = useState<PanelState>("full")
   const [isDragging, setIsDragging] = useState(false)
@@ -28,17 +33,16 @@ export default function DraggableChatPanel({ isOpen, onToggle, selectedLocation 
     typeof window === "undefined" ? 800 : window.innerHeight
   )
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
-    api: "/api/chat",
-    initialMessages: [
-      {
-        id: "1",
-        role: "assistant",
-        content:
-          "Hello! 👋 I'm your AI assistant. I can help you with information about locations, weather forecasts, travel recommendations, and answer any questions you have. Click on the map to select a location and I'll provide detailed information about that area!",
-      },
-    ],
-  })
+  // Custom chat state management
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: "1",
+      role: "assistant",
+      content: "Hello! 👋 I'm your ClimaTech AI assistant. I can help you with climate risks, weather information, natural disaster preparedness, and location-specific hazard assessments. Click on the map to select a location and I'll provide detailed risk analysis and safety recommendations for that area!",
+    },
+  ])
+  const [input, setInput] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
 
   // Panel height configurations
   const panelHeights = {
@@ -67,6 +71,71 @@ export default function DraggableChatPanel({ isOpen, onToggle, selectedLocation 
     setIsDragging(true)
     setDragStartY(e.clientY)
     setCurrentY(0)
+  }
+
+  // Custom chat submission to backend
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!input.trim() || isLoading) return
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: "user",
+      content: input.trim(),
+    }
+
+    setMessages(prev => [...prev, userMessage])
+    setInput("")
+    setIsLoading(true)
+
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5000"
+      const requestBody: any = {
+        question: input.trim(),
+      }
+
+      // Include location data if available
+      if (selectedLocation) {
+        requestBody.lat = selectedLocation.lat
+        requestBody.lng = selectedLocation.lng
+      }
+
+      const response = await fetch(`${backendUrl}/api/assistant/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Backend error: ${response.status}`)
+      }
+
+      const data = await response.json()
+      
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: data.advice || "I'm sorry, I couldn't process your request at the moment. Please try again.",
+      }
+
+      setMessages(prev => [...prev, assistantMessage])
+    } catch (error) {
+      console.error("Chat error:", error)
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: "I'm sorry, I'm having trouble connecting to the backend right now. Please make sure the backend server is running on http://localhost:5000 and try again.",
+      }
+      setMessages(prev => [...prev, errorMessage])
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInput(e.target.value)
   }
 
   // Handle drag and snap logic
@@ -146,7 +215,7 @@ export default function DraggableChatPanel({ isOpen, onToggle, selectedLocation 
             </div>
             <div>
               <span className="font-semibold text-white text-lg">ClimaTech AI Assistant</span>
-              <p className="text-sm text-white/80">Intelligent Location & Weather Helper</p>
+              <p className="text-sm text-white/80">Climate Risk & Disaster Preparedness AI</p>
             </div>
           </div>
 
@@ -200,7 +269,7 @@ export default function DraggableChatPanel({ isOpen, onToggle, selectedLocation 
                           : "bg-white/95 text-gray-800 rounded-bl-md"
                       }`}
                     >
-                      <p className="text-sm leading-relaxed">{message.content}</p>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
                     </div>
                   </div>
                 </div>
@@ -235,7 +304,9 @@ export default function DraggableChatPanel({ isOpen, onToggle, selectedLocation 
                 <Input
                   value={input}
                   onChange={handleInputChange}
-                  placeholder="Ask about weather, locations, attractions, or anything else..."
+                  placeholder={selectedLocation 
+                    ? "Ask about climate risks, weather, or safety recommendations for this location..." 
+                    : "Ask about climate risks, disasters, preparedness, or select a location on the map..."}
                   className="flex-1 bg-white/90 border-white/30 text-gray-800 placeholder-gray-500 rounded-xl h-12 px-4 text-sm"
                 />
                 <Button
@@ -247,7 +318,10 @@ export default function DraggableChatPanel({ isOpen, onToggle, selectedLocation 
                 </Button>
               </div>
               <div className="mt-2 text-xs text-white/60 text-center">
-                💡 Try asking: "What's the weather like here?" or "Tell me about this location"
+                💡 Try asking: "What are the climate risks here?" or "How should I prepare for disasters?"
+                {selectedLocation && (
+                  <span className="block text-green-300">📍 Location selected: {selectedLocation.lat.toFixed(4)}, {selectedLocation.lng.toFixed(4)}</span>
+                )}
               </div>
             </form>
           </>

@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
 from db.queries import (
     get_flood_data_by_risk,
     get_landslide_data_by_risk,
@@ -22,6 +23,9 @@ import traceback
 setup_database()
 
 app = Flask(__name__, static_folder='static')
+
+# Enable CORS for all routes
+CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000"])
 
 
 @app.route("/")
