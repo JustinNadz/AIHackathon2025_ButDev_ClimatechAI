@@ -1,8 +1,9 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 const MapComponent = () => {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     const loadGoogleMaps = () => {
@@ -119,14 +120,212 @@ const MapComponent = () => {
   }, []);
 
   return (
-    <div 
-      ref={mapRef} 
-      style={{ 
-        width: '100%', 
+    <div style={{ 
+      display: 'flex', 
+      width: '100%', 
+      height: '100vh',
+      fontFamily: 'Arial, sans-serif'
+    }}>
+      {/* Side Panel */}
+      <div style={{
+        width: sidebarCollapsed ? '0px' : '350px',
         height: '100%',
-        backgroundColor: '#e9ecef'
-      }}
-    />
+        backgroundColor: '#f7f9fc',
+        borderRight: sidebarCollapsed ? 'none' : '1px solid #e3e8ef',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        transition: 'width 0.3s ease-in-out'
+      }}>
+        {/* ClimaTech AI Header */}
+        <div style={{
+          padding: '20px',
+          backgroundColor: '#ffffff',
+          borderBottom: '1px solid #e3e8ef',
+          display: 'flex',
+          alignItems: 'center'
+        }}>
+          <div style={{
+            width: '40px',
+            height: '40px',
+            backgroundColor: '#ffc107',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginRight: '12px',
+            fontSize: '20px'
+          }}>
+            🛡️
+          </div>
+          <div>
+            <h1 style={{
+              margin: '0',
+              fontSize: '18px',
+              fontWeight: 'bold',
+              color: '#1a202c'
+            }}>
+              ClimaTech AI
+            </h1>
+            <p style={{
+              margin: '0',
+              fontSize: '14px',
+              color: '#4299e1'
+            }}>
+              Disaster Management
+            </p>
+          </div>
+        </div>
+
+        {/* Main Navigation Header */}
+        <div style={{
+          padding: '16px 20px 12px 20px',
+          backgroundColor: '#f7f9fc'
+        }}>
+          <h3 style={{
+            margin: '0',
+            fontSize: '14px',
+            fontWeight: '600',
+            color: '#4299e1',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px'
+          }}>
+            Main Navigation
+          </h3>
+        </div>
+
+        {/* Navigation Items */}
+        <div style={{
+          flex: '1',
+          backgroundColor: '#f7f9fc'
+        }}>
+          {/* Emergency Response */}
+          <div style={{
+            padding: '12px 20px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            transition: 'all 0.2s'
+          }}>
+            <span style={{ marginRight: '12px', fontSize: '16px' }}>🚨</span>
+            <span style={{
+              fontSize: '14px',
+              fontWeight: '500',
+              color: '#4a5568'
+            }}>
+              Emergency Response
+            </span>
+          </div>
+
+          {/* Emergency Reports */}
+          <div style={{
+            padding: '12px 20px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            transition: 'all 0.2s'
+          }}>
+            <span style={{ marginRight: '12px', fontSize: '16px' }}>📋</span>
+            <span style={{
+              fontSize: '14px',
+              fontWeight: '500',
+              color: '#4a5568'
+            }}>
+              Emergency Reports
+            </span>
+          </div>
+
+          {/* Additional Navigation Items */}
+          <div style={{
+            padding: '12px 20px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            transition: 'all 0.2s'
+          }}>
+            <span style={{ marginRight: '12px', fontSize: '16px' }}>⚙️</span>
+            <span style={{
+              fontSize: '14px',
+              fontWeight: '500',
+              color: '#4a5568'
+            }}>
+              System Management
+            </span>
+          </div>
+
+          <div style={{
+            padding: '12px 20px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            transition: 'all 0.2s'
+          }}>
+            <span style={{ marginRight: '12px', fontSize: '16px' }}>❓</span>
+            <span style={{
+              fontSize: '14px',
+              fontWeight: '500',
+              color: '#4a5568'
+            }}>
+              Help & Support
+            </span>
+          </div>
+        </div>
+
+
+      </div>
+
+      {/* Map Container */}
+      <div style={{ 
+        flex: '1', 
+        height: '100%',
+        position: 'relative'
+      }}>
+        {/* Sidebar Toggle Button */}
+        <button
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          style={{
+            position: 'absolute',
+            top: '20px',
+            left: sidebarCollapsed ? '20px' : '20px',
+            zIndex: 1000,
+            width: '44px',
+            height: '44px',
+            backgroundColor: '#ffffff',
+            border: '1px solid #e3e8ef',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            fontSize: '18px',
+            color: '#4299e1',
+            transition: 'all 0.2s ease',
+            fontWeight: 'bold'
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.backgroundColor = '#f7f9fc';
+            e.target.style.transform = 'scale(1.05)';
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.backgroundColor = '#ffffff';
+            e.target.style.transform = 'scale(1)';
+          }}
+          title={sidebarCollapsed ? 'Show ClimaTech AI Panel' : 'Hide ClimaTech AI Panel'}
+        >
+          {sidebarCollapsed ? '☰' : '✕'}
+        </button>
+
+        <div 
+          ref={mapRef} 
+          style={{ 
+            width: '100%', 
+            height: '100%',
+            backgroundColor: '#e9ecef'
+          }}
+        />
+      </div>
+    </div>
   );
 };
 
