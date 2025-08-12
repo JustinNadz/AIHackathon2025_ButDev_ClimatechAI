@@ -95,15 +95,14 @@ def example_api_only():
         if weather_data:
             current = weather_data['current']
             location = weather_data['location']
-            
-                    print(f"✅ {city_name} Raw Weather Data:")
-        print(f"   🌡️ Temperature: {current['temperature']}°C")
-        print(f"   🌤️ Condition: {current['description']}")
-        print(f"   💧 Humidity: {current['humidity']}%")
-        print(f"   🌧️ Rainfall: {current['rainfall']}mm/h")
-        print(f"   💨 Wind: {current['wind_speed']}km/h")
-        print(f"   📍 Location: {location['name']}")
-        print(f"   🔗 Source: {weather_data['source']}")
+            print(f"✅ {city_name} Raw Weather Data:")
+            print(f"   🌡️ Temperature: {current['temperature']}°C")
+            print(f"   🌤️ Condition: {current['description']}")
+            print(f"   💧 Humidity: {current['humidity']}%")
+            print(f"   🌧️ Rainfall: {current['rainfall']}mm/h")
+            print(f"   💨 Wind: {current['wind_speed']}km/h")
+            print(f"   📍 Location: {location['name']}")
+            print(f"   🔗 Source: {weather_data['source']}")
         else:
             print(f"❌ Failed to get weather data for {city_name}")
 
