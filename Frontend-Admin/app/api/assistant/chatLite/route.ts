@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     const pythonScriptPath = path.join(process.cwd(), 'ai.py');
     
     // Spawn Python process with the prompt as argument
-    const pythonProcess = spawn('python', [pythonScriptPath, prompt, mode], {
+    const pythonProcess = spawn('python', [pythonScriptPath, mode, prompt], {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: process.cwd() // Ensure we're in the right directory
     });
