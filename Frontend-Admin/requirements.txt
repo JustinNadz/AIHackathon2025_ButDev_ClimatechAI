@@ -1,0 +1,32 @@
+# ClimatechAI Backend Requirements
+# Generated for AI Hackathon 2025 - ButDev Team
+
+# HTTP requests for OpenRouter API
+requests>=2.31.0
+
+# JSON handling (built-in, but specifying for clarity)
+# json - built-in module
+
+# Operating system interface (built-in)
+# os - built-in module
+
+# System-specific parameters and functions (built-in)
+# sys - built-in module
+
+# Temporary file and directory creation (built-in)
+# tempfile - built-in module
+
+# Date and time handling (built-in)
+# datetime - built-in module
+
+# Type hints (built-in in Python 3.5+)
+# typing - built-in module
+
+# Optional: For better error handling and debugging
+traceback2>=1.4.0
+
+# Optional: For environment variable management
+python-dotenv>=1.0.0
+
+# Optional: For enhanced JSON handling
+simplejson>=3.19.0 
