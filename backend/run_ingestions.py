@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """
-Script to run flood, landslide, and weather data ingestion into PostgreSQL with PostGIS
+Script to run flood, landslide, weather, and seismic data ingestion into PostgreSQL with PostGIS
 """
 import os
 import sys
 from ingest.flood_ingestor import FloodIngestor
 from ingest.landslide_ingestor import LandslideIngestor
 from ingest.weather_ingestor import WeatherIngestor
+from ingest.seismic_ingestor import SeismicIngestor
 
+# TODO: make weather data use the actual api
 
 def main():
     """Main ingestion function"""
@@ -20,11 +22,18 @@ def main():
         print("  flood     - Ingest flood data (uses 'Var' column)")
         print("  landslide - Ingest landslide data (uses 'HAZ' column)")
         print("  weather   - Ingest weather data from API")
+        print("  seismic   - Ingest seismic data from CSV")
         print("\nExamples:")
         print("  python run_ingestions.py flood data/flood_zones.shp")
         print("  python run_ingestions.py landslide data/landslide_zones.shp")
         print("  python run_ingestions.py weather --mode cities")
         print("  python run_ingestions.py weather --mode single --lat 14.5995 --lng 120.9842")
+        print("  python run_ingestions.py seismic data/earthquakes.csv")
+        print("  python run_ingestions.py seismic data/earthquakes.csv --date-format '%Y-%m-%d %H:%M:%S'")
+        print("  python run_ingestions.py seismic data/earthquakes.csv --validate-only")
+        print("\nWeather modes:")
+        print("  cities    - Ingest weather for major Philippine cities")
+        print("  single    - Ingest weather for a single location")
         return
     
     data_type = sys.argv[1].lower()
@@ -125,9 +134,45 @@ def main():
                 print(f"❌ Error: Unknown weather mode '{mode}'")
                 return
             
+        elif data_type == "seismic":
+            # Handle seismic data ingestion
+            if len(sys.argv) < 3:
+                print("❌ Error: File path required for seismic data")
+                return
+            
+            file_path = sys.argv[2]
+            if not os.path.exists(file_path):
+                print(f"❌ Error: File not found: {file_path}")
+                return
+            
+            # Parse seismic-specific options
+            date_format = "%Y-%m-%d %H:%M:%S"  # default format
+            validate_only = False
+            
+            for i, arg in enumerate(sys.argv[3:], 3):
+                if arg == "--date-format" and i + 1 < len(sys.argv):
+                    date_format = sys.argv[i + 1]
+                elif arg == "--validate-only":
+                    validate_only = True
+            
+            print(f"🌋 Ingesting seismic data with date format: {date_format}")
+            ingestor = SeismicIngestor()
+            
+            if validate_only:
+                if ingestor.validate_csv_structure(file_path):
+                    print("✅ CSV is ready for ingestion")
+                else:
+                    print("❌ CSV validation failed")
+            else:
+                success = ingestor.ingest_csv(file_path, date_format)
+                if success:
+                    print("✅ Seismic data ingestion completed successfully!")
+                else:
+                    print("❌ Seismic data ingestion failed")
+            
         else:
             print(f"❌ Error: Unknown data type '{data_type}'")
-            print("Supported types: flood, landslide, weather")
+            print("Supported types: flood, landslide, weather, seismic")
             return
             
     except Exception as e:
