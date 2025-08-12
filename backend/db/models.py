@@ -47,3 +47,9 @@ class WeatherData(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class EmergencyProtocol(Base):
+    __tablename__ = "emergency_protocol"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    protocol_name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
