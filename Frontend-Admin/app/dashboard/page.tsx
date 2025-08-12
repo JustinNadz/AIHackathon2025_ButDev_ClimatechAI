@@ -16,13 +16,26 @@ export default function DashboardPage() {
   const [isSendingLive, setIsSendingLive] = useState(false)
   const [isSendingSim, setIsSendingSim] = useState(false)
 
-  const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_BASE_URL || 'http://localhost:5000'
-
   const sendLiveWeather = async () => {
     try {
       setIsSendingLive(true)
       // Hit a backend endpoint to ingest current weather (implement in backend)
-      const resp = await fetch(`${BACKEND_BASE_URL}/api/weather/ingest-live`, { method: 'POST' })
+      const resp = await fetch(`http://localhost:3000/api/assistant/chatLite`, { 
+        method: 'POST',
+        body: JSON.stringify({
+          prompt: {
+            latitude: 10.7302,
+            longitude: 122.5591,
+            category: "Severe Tropical Storm",
+            sustainedWind_kmh: 89,
+            gustWind_kmh: 115,
+            humidity_pct: 85,
+            temperature_c: 24,
+            rainfallRate_mm_hr: 30
+          },
+          mode: "detect"
+        })
+      })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       alert('Live weather data sent successfully')
     } catch (err) {

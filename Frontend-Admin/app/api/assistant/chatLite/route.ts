@@ -44,8 +44,14 @@ export async function POST(request: NextRequest) {
           }, { status: 500 }));
         } else {
           try {
-            const result = JSON.parse(output);
-            resolve(NextResponse.json(result));
+            const jsonStart = output.indexOf("{");
+            if (jsonStart !== -1) {
+              const clean = output.slice(jsonStart);
+              const result = JSON.parse(clean);
+              resolve(NextResponse.json(result));
+            } else {
+              throw new Error("No JSON found in output");
+            }
           } catch (parseError) {
             console.error('Parse error:', parseError, 'Raw output:', output);
             resolve(NextResponse.json({ 
