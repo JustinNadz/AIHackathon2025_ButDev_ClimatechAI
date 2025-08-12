@@ -13,6 +13,7 @@ from db.queries import (
 )
 from vectordb.ingest import add_documents
 from ai.rag import answer_with_rag
+from ai.base_model import get_base_model  # Import our new base model
 from db.setup import setup_database
 from db.base import SessionLocal, engine
 from sqlalchemy import text
@@ -224,6 +225,214 @@ def assistant():
         print(f"❌ Error in assistant endpoint: {e}")
         print(f"📋 Traceback: {traceback.format_exc()}")
         return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+    finally:
+        if db:
+            db.close()
+
+
+# ============================================================================
+# ENHANCED AI ASSISTANT ENDPOINT (Base Model + RAG Support)
+# ============================================================================
+
+@app.route("/api/assistant/enhanced", methods=["POST"])
+def enhanced_assistant():
+    """Enhanced AI assistant using google/gemma-3-27b-it:free as primary model with RAG backup.
+    
+    This endpoint provides intelligent climate and disaster advice using:
+    1. Primary: google/gemma-3-27b-it:free model for natural language understanding
+    2. Backup: RAG system with embedded knowledge base
+    3. Real-time hazard data integration
+    
+    Request JSON:
+      { "lat": number, "lng": number, "question": string }
+    Optional parameters:
+      hours_earthquake: int (default 24)
+      eq_radius_km: float (default 100)
+      weather_hours: int (default 3)
+      weather_radius_km: float (default 100)
+      use_rag_fallback: bool (default true)
+    """
+    db = None
+    try:
+        payload = request.get_json(force=True) or {}
+        lat = payload.get("lat")
+        lng = payload.get("lng")
+        question = payload.get("question") or "What should I do to prepare for potential climate hazards in this area?"
+        
+        if lat is None or lng is None:
+            return jsonify({"error": "lat and lng are required"}), 400
+
+        # Configuration parameters
+        hours_earthquake = int(payload.get("hours_earthquake", 24))
+        eq_radius_km = float(payload.get("eq_radius_km", 100.0))
+        weather_hours = int(payload.get("weather_hours", 3))
+        weather_radius_km = float(payload.get("weather_radius_km", 100.0))
+        use_rag_fallback = payload.get("use_rag_fallback", True)
+
+        print(f"🤖 Enhanced Assistant Request: {question} at ({lat:.5f}, {lng:.5f})")
+
+        # Get real-time hazard data
+        db = SessionLocal()
+        flood_risk = get_flood_risk_at_point(db, latitude=lat, longitude=lng)
+        landslide_risk = get_landslide_risk_at_point(db, latitude=lat, longitude=lng)
+        recent_eq = get_recent_earthquakes_nearby(db, latitude=lat, longitude=lng, hours=hours_earthquake, max_km=eq_radius_km)
+        nearest_weather = get_nearest_recent_weather(db, latitude=lat, longitude=lng, hours=weather_hours, max_km=weather_radius_km)
+
+        # Build comprehensive context for the AI model
+        hazard_context = []
+        
+        # Location context
+        hazard_context.append(f"📍 Location: {lat:.5f}, {lng:.5f}")
+        
+        # Flood risk context
+        if flood_risk is not None:
+            risk_level = "low" if flood_risk <= 1.5 else "medium" if flood_risk <= 2.5 else "high"
+            hazard_context.append(f"🌊 Flood Risk: {risk_level} (level {flood_risk:.1f}/3.0)")
+        else:
+            hazard_context.append("🌊 Flood Risk: No data available")
+        
+        # Landslide risk context  
+        if landslide_risk is not None:
+            risk_level = "low" if landslide_risk <= 1.5 else "medium" if landslide_risk <= 2.5 else "high"
+            hazard_context.append(f"⛰️ Landslide Risk: {risk_level} (level {landslide_risk:.1f}/3.0)")
+        else:
+            hazard_context.append("⛰️ Landslide Risk: No data available")
+        
+        # Earthquake context
+        if recent_eq:
+            strongest = max(recent_eq, key=lambda e: (e["magnitude"] or 0))
+            nearest = min(recent_eq, key=lambda e: (e["distance_km"] or 1e9))
+            hazard_context.append(f"🌋 Recent Earthquakes: {len(recent_eq)} events in last {hours_earthquake}h")
+            hazard_context.append(f"   - Strongest: M{strongest['magnitude']:.1f}")
+            hazard_context.append(f"   - Nearest: {nearest['distance_km']:.1f}km away")
+        else:
+            hazard_context.append(f"🌋 Recent Earthquakes: No significant activity in last {hours_earthquake}h")
+        
+        # Weather context
+        if nearest_weather:
+            temp = nearest_weather.get("temperature")
+            humidity = nearest_weather.get("humidity")
+            rainfall = nearest_weather.get("rainfall", 0)
+            wind_speed = nearest_weather.get("wind_speed")
+            distance = nearest_weather.get("distance_km")
+            
+            weather_info = f"🌤️ Current Weather (from {distance:.1f}km away):"
+            if temp is not None:
+                weather_info += f" {temp:.1f}°C"
+            if humidity is not None:
+                weather_info += f", {humidity:.0f}% humidity"
+            if rainfall > 0:
+                weather_info += f", {rainfall:.1f}mm/h rainfall"
+            if wind_speed is not None:
+                weather_info += f", {wind_speed:.1f}km/h wind"
+            hazard_context.append(weather_info)
+        else:
+            hazard_context.append(f"🌤️ Current Weather: No recent data within {weather_radius_km}km")
+
+        # Create the system prompt for the base model
+        system_prompt = """You are ClimatechAI, an expert environmental and disaster preparedness assistant for the Philippines. 
+
+Your role is to:
+1. Analyze climate and natural disaster risks
+2. Provide practical, actionable safety recommendations
+3. Give location-specific advice based on real-time hazard data
+4. Prioritize immediate safety concerns
+5. Offer both short-term and long-term preparedness guidance
+
+Guidelines:
+- Be concise but thorough
+- Use bullet points for actionable recommendations
+- Prioritize immediate safety over long-term planning
+- Consider Filipino context (climate, geography, culture)
+- If evacuation might be needed, be specific about preparation steps
+- Always consider multiple hazard interactions (e.g., earthquakes + landslides)
+
+Response format:
+- Start with immediate safety assessment
+- List prioritized recommendations
+- Include emergency contacts reminder if needed
+- End with monitoring/follow-up advice"""
+
+        # Combine user question with hazard context
+        user_prompt = f"""User Question: {question}
+
+Current Hazard Assessment:
+{chr(10).join(hazard_context)}
+
+Please provide specific, actionable advice for this location considering all the hazard data above."""
+
+        # Try to get response from base model first
+        response_text = ""
+        model_used = "unknown"
+        
+        try:
+            print("🚀 Attempting response with google/gemma-3-27b-it:free model...")
+            
+            # Get the base model instance
+            base_model = get_base_model()
+            
+            # Get completion from the base model
+            response_text = base_model.chat_completion(
+                user_message=user_prompt,
+                system_message=system_prompt,
+                temperature=0.3,  # Slightly creative but focused
+                max_tokens=1000   # Reasonable response length
+            )
+            
+            model_used = "google/gemma-3-27b-it:free"
+            print(f"✅ Successfully generated response with base model ({len(response_text)} chars)")
+            
+        except Exception as base_model_error:
+            print(f"⚠️ Base model failed: {base_model_error}")
+            
+            if use_rag_fallback:
+                try:
+                    print("🔄 Falling back to RAG system...")
+                    
+                    # Prepare question for RAG system
+                    rag_question = f"{question}\n\nContext:\n{chr(10).join(hazard_context)}"
+                    
+                    # Use existing RAG system as fallback
+                    response_text = answer_with_rag(rag_question, collection_name="preparedness")
+                    model_used = "rag_fallback"
+                    print(f"✅ RAG fallback successful ({len(response_text)} chars)")
+                    
+                except Exception as rag_error:
+                    print(f"❌ RAG fallback also failed: {rag_error}")
+                    response_text = "I apologize, but I'm currently experiencing technical difficulties. Please contact local emergency services for immediate hazard information, and try again later."
+                    model_used = "error_fallback"
+            else:
+                response_text = "Base model is currently unavailable. Please enable RAG fallback or try again later."
+                model_used = "error_no_fallback"
+
+        # Prepare the response
+        response = {
+            "location": {"lat": lat, "lng": lng},
+            "question": question,
+            "hazards": {
+                "flood_risk": flood_risk,
+                "landslide_risk": landslide_risk,
+                "recent_earthquakes": len(recent_eq) if recent_eq else 0,
+                "earthquake_details": recent_eq,
+                "weather": nearest_weather,
+            },
+            "response": response_text,
+            "model_used": model_used,
+            "context_provided": hazard_context,
+            "timestamp": json.loads(json.dumps({"timestamp": None}, default=str))  # Will be current time
+        }
+
+        print(f"🎯 Enhanced assistant response ready (model: {model_used})")
+        return jsonify(response)
+
+    except Exception as e:
+        print(f"❌ Error in enhanced assistant endpoint: {e}")
+        print(f"📋 Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "error": str(e), 
+            "traceback": traceback.format_exc(),
+            "endpoint": "enhanced_assistant"
+        }), 500
     finally:
         if db:
             db.close()
