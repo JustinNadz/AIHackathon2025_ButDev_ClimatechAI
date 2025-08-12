@@ -128,7 +128,7 @@ function MockMapComponent() {
 		<div className="w-full h-full bg-gradient-to-br from-blue-100 to-green-100 relative overflow-hidden">
 			<div className="absolute inset-0 bg-gradient-to-br from-blue-200/30 to-green-200/30"></div>
 
-			{/* Mock Iloilo City layout */}
+            {/* Mock Butuan City layout */}
 			<div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
 				<div className="relative w-80 h-60">
 					{/* Risk zones as colored circles */}
@@ -152,9 +152,9 @@ function MockMapComponent() {
 				<div className="w-6 h-6 bg-gray-200 rounded"></div>
 			</div>
 
-			{/* Coordinates display */}
+            {/* Coordinates display */}
 			<div className="absolute bottom-4 left-4 bg-white/90 rounded px-3 py-1 text-xs font-mono">
-				10.7302°N, 122.5591°E
+                8.9492°N, 125.5436°E
 			</div>
 		</div>
 	);
@@ -210,7 +210,7 @@ function MapComponent({ center, zoom, onMapLoad }: MapProps) {
 					tilt: 67.5,
 					heading: 0,
                     restriction: {
-                        // Butuan approx bounds
+
                         latLngBounds: {
                             north: 9.10,
                             south: 8.80,
@@ -615,8 +615,7 @@ const render = (status: Status): React.ReactElement => {
 };
 
 export function InteractiveMap() {
-    const [selectedLocation, setSelectedLocation] = useState<{ lat: number, lng: number }>({ lat: 8.9492, lng: 125.5436 });
-    const [currentMapCenter, setCurrentMapCenter] = useState<{ lat: number, lng: number }>({ lat: 8.9492, lng: 125.5436 });
+
 	const [selectedLayer, setSelectedLayer] = useState<string>("all");
     const [queryRadius, setQueryRadius] = useState<number>(50);
     const [apiKeyStatus, setApiKeyStatus] = useState<'checking' | 'valid' | 'invalid' | 'billing-error'>('checking');
@@ -627,6 +626,12 @@ export function InteractiveMap() {
 	const [isLoadingFloodData, setIsLoadingFloodData] = useState(false);
 	const [isLoadingLandslideData, setIsLoadingLandslideData] = useState(false);
 	const [isLoadingSeismicData, setIsLoadingSeismicData] = useState(false);
+	
+	// Missing state variables
+	const [currentMapCenter, setCurrentMapCenter] = useState<{ lat: number, lng: number }>({ lat: 10.7302, lng: 122.5591 });
+	const [queryRadius, setQueryRadius] = useState<number>(50);
+	const [seismicMarkers, setSeismicMarkers] = useState<google.maps.Marker[]>([]);
+	
 	const scrollContainerRef = useRef<HTMLDivElement>(null);
 	const [canScrollLeft, setCanScrollLeft] = useState(false);
 	const [canScrollRight, setCanScrollRight] = useState(true);
@@ -837,47 +842,6 @@ export function InteractiveMap() {
 			waterLevel: 0.8
 		}
 	];
-
-	// Functions to fetch backend data
-    const fetchBackendData = async () => {
-        setIsLoadingBackendData(true);
-        const backendUrl = BACKEND_BASE_URL;
-
-        try {
-            // Attempt a light-weight ping if available, ignore errors
-            try { await fetch(`${backendUrl}/health`, { method: 'GET' }); } catch {}
-
-            const results = await Promise.allSettled([
-                fetch(`${backendUrl}/api/flood-data`),
-                fetch(`${backendUrl}/api/landslide-data`),
-                fetch(`${backendUrl}/api/seismic-data`),
-                fetch(`${backendUrl}/api/weather-data`)
-            ]);
-
-            const [floodRes, landslideRes, seismicRes, weatherRes] = results;
-
-            if (floodRes.status === 'fulfilled' && floodRes.value.ok) {
-                const floodData = await floodRes.value.json();
-                setBackendFloodData(floodData.features || floodData || []);
-            }
-            if (landslideRes.status === 'fulfilled' && landslideRes.value.ok) {
-                const landslideData = await landslideRes.value.json();
-                setBackendLandslideData(landslideData.features || landslideData || []);
-            }
-            if (seismicRes.status === 'fulfilled' && seismicRes.value.ok) {
-                const seismicData = await seismicRes.value.json();
-                setBackendSeismicData(seismicData.features || seismicData || []);
-            }
-            if (weatherRes.status === 'fulfilled' && weatherRes.value.ok) {
-                const weatherData = await weatherRes.value.json();
-                setBackendWeatherData(weatherData.features || weatherData || []);
-            }
-        } catch (error) {
-            console.warn('Backend data fetch skipped or failed:', error);
-        } finally {
-            setIsLoadingBackendData(false);
-        }
-    };
 
 	const getRiskColor = (riskLevel: number) => {
 		if (riskLevel >= 7) return '#dc2626'; // High risk - red
@@ -1338,7 +1302,6 @@ export function InteractiveMap() {
 	]
 
 	// Backend API base URL
-    const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_BASE_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
 	// Data fetching functions
 	const fetchFloodData = async () => {
