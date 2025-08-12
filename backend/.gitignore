@@ -2,4 +2,4 @@
 datasets/
 __pycache__/
 data.db
-
+ai/chroma_store/
