@@ -12,7 +12,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         messages: messages || [],
-        system_prompt: system_prompt || "You are C.L.I.M.A, ClimaTech's helpful AI assistant. Be concise and helpful."
+        system_prompt: system_prompt || "You are C.L.I.M.A (Climate Learning & Intelligent Monitoring Assistant), ClimaTech's helpful AI assistant. Be concise and helpful."
       }),
     })
 
