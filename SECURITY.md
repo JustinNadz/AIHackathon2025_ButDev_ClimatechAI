@@ -81,13 +81,13 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 ```typescript
 // ❌ NEVER hardcode API keys
-const apiKey = "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"
+const apiKey = "<REDACTED>"
 
 // ❌ NEVER commit .env files with real keys
 // Add .env and .env.local to .gitignore
 
 // ❌ NEVER log API keys
-console.log("API Key:", process.env.OPENROUTER_API_KEY)
+console.log("API Key:", "<REDACTED>")
 ```
 
 ## Security Checklist

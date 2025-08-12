@@ -1008,9 +1008,9 @@ export function InteractiveMap() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
   
-  // Google Maps API key - In production, this should be in environment variables
-  const GOOGLE_MAPS_API_KEY = "AIzaSyCRNZQqOWD_OVZ0Ie2BjMB0a3dngiIbQUk"
-  const isValidApiKey = GOOGLE_MAPS_API_KEY && GOOGLE_MAPS_API_KEY.length > 5
+  // Google Maps API key must come from environment variables
+  const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ""
+  const isValidApiKey = typeof GOOGLE_MAPS_API_KEY === 'string' && GOOGLE_MAPS_API_KEY.length > 0
 
   // Test the API key validity
   const testApiKey = useCallback(async () => {
@@ -1036,8 +1036,7 @@ export function InteractiveMap() {
       }
       
       // Don't actually append the script, just test the URL format
-      console.log(`🔍 Testing API key: ${GOOGLE_MAPS_API_KEY}`)
-      console.log(`📍 API key format: ${GOOGLE_MAPS_API_KEY.length} characters, starts with: ${GOOGLE_MAPS_API_KEY.substring(0, 8)}...`)
+      console.log(`🔍 Testing API key presence from env: ${GOOGLE_MAPS_API_KEY ? 'present' : 'missing'}`)
       
       // For now, assume valid if it has the right format
       if (GOOGLE_MAPS_API_KEY.startsWith('AIza') && GOOGLE_MAPS_API_KEY.length >= 30) {
