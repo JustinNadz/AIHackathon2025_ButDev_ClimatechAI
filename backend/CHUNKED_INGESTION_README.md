@@ -29,7 +29,13 @@ The original flood ingestor processed data row-by-row with individual database c
 - Configurable simplification tolerance
 - Prevents database crashes with complex geometries
 
-### 4. Optimized Methods
+### 4. Multipolygon Splitting
+- Splits large multipolygons into smaller, manageable pieces
+- Configurable maximum coordinates per resulting polygon
+- Converts one large feature into multiple smaller features
+- Maintains geographic coverage while improving performance
+
+### 5. Optimized Methods
 - `ingest_shp_optimized()` for datasets with 2M+ points
 - Larger chunk sizes and more aggressive simplification
 - Better memory management for very large datasets
@@ -72,6 +78,24 @@ ingestor.ingest_shp_optimized(
 )
 ```
 
+### Split Large Multipolygons
+
+```python
+# For datasets with large multipolygons (millions of coordinates)
+ingestor = FloodIngestor(
+    chunk_size=1,       # Process one feature at a time
+    batch_size=100      # Batch size for database commits
+)
+
+# Split large multipolygons into smaller pieces
+ingestor.ingest_shp(
+    file_path="path/to/flood_data.shp",
+    risk_column="Var",
+    split_large_geometries=True,           # Enable splitting
+    max_coordinates_per_polygon=5000       # Max 5000 coords per polygon
+)
+```
+
 ## Performance Optimization
 
 ### Recommended Settings by Dataset Size
@@ -83,11 +107,30 @@ ingestor.ingest_shp_optimized(
 | 1M - 5M points | 5000 | 500 | `ingest_shp_optimized()` |
 | > 5M points | 10000 | 1000 | `ingest_shp_optimized()` |
 
-## Example Script
+## Example Scripts
 
-Run the example script to see the system in action:
+Run the example scripts to see the system in action:
 
 ```bash
+# General chunked ingestion examples
 cd backend
 python example_chunked_flood_ingestion.py
+
+# Large multipolygon splitting examples
+python example_large_multipolygon_ingestion.py
+```
+
+## Command Line Usage
+
+### Split Large Multipolygons
+
+```bash
+# Split large multipolygons into smaller pieces
+python run_ingestions.py flood datasets/flood_data.shp --split-geometries --max-coords-per-polygon 5000
+
+# More aggressive splitting for very large geometries
+python run_ingestions.py flood datasets/flood_data.shp --split-geometries --max-coords-per-polygon 1000
+
+# Optimized approach with splitting
+python run_ingestions.py flood datasets/flood_data.shp --optimized --split-geometries --max-coords-per-polygon 3000
 ```
