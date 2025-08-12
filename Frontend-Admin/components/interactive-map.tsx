@@ -60,6 +60,53 @@ interface FloodPrediction {
   waterLevel: number; // meters
 }
 
+// Backend data interfaces
+interface BackendFloodData {
+  id: number;
+  latitude: number;
+  longitude: number;
+  risk_level: number;
+  water_level?: number;
+  flood_type?: string;
+  location_name?: string;
+  last_updated?: string;
+}
+
+interface BackendLandslideData {
+  id: number;
+  latitude: number;
+  longitude: number;
+  risk_level: number;
+  slope_angle?: number;
+  soil_type?: string;
+  location_name?: string;
+  last_updated?: string;
+}
+
+interface BackendSeismicData {
+  id: number;
+  latitude: number;
+  longitude: number;
+  magnitude?: number;
+  depth?: number;
+  event_time?: string;
+  location_name?: string;
+  intensity?: number;
+}
+
+interface BackendWeatherData {
+  id: number;
+  latitude: number;
+  longitude: number;
+  temperature?: number;
+  humidity?: number;
+  pressure?: number;
+  wind_speed?: number;
+  wind_direction?: number;
+  station_name?: string;
+  recorded_at?: string;
+}
+
 interface LegendItem {
   id: string;
   label: string;
@@ -601,6 +648,14 @@ export function InteractiveMap() {
   const [landslideZones, setLandslideZones] = useState<google.maps.Polygon[]>([]);
   const [fireZones, setFireZones] = useState<google.maps.Polygon[]>([]);
   const [energyZones, setEnergyZones] = useState<google.maps.Polygon[]>([]);
+  
+  // Backend data states
+  const [backendFloodData, setBackendFloodData] = useState<BackendFloodData[]>([]);
+  const [backendLandslideData, setBackendLandslideData] = useState<BackendLandslideData[]>([]);
+  const [backendSeismicData, setBackendSeismicData] = useState<BackendSeismicData[]>([]);
+  const [backendWeatherData, setBackendWeatherData] = useState<BackendWeatherData[]>([]);
+  const [isLoadingBackendData, setIsLoadingBackendData] = useState(false);
+  const [backendDataMarkers, setBackendDataMarkers] = useState<google.maps.Marker[]>([]);
 
   const getPolygonCentroid = (coords: google.maps.LatLngLiteral[]): google.maps.LatLngLiteral => {
     const { length } = coords;
@@ -666,6 +721,238 @@ export function InteractiveMap() {
       waterLevel: 0.8
     }
   ];
+
+  // Functions to fetch backend data
+  const fetchBackendData = async () => {
+    setIsLoadingBackendData(true);
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+    
+    try {
+      // Fetch all data types in parallel
+      const [floodResponse, landslideResponse, seismicResponse, weatherResponse] = await Promise.all([
+        fetch(`${backendUrl}/api/flood-data`),
+        fetch(`${backendUrl}/api/landslide-data`),
+        fetch(`${backendUrl}/api/seismic-data`),
+        fetch(`${backendUrl}/api/weather-data`)
+      ]);
+
+      if (floodResponse.ok) {
+        const floodData = await floodResponse.json();
+        setBackendFloodData(floodData.features || floodData || []);
+      }
+
+      if (landslideResponse.ok) {
+        const landslideData = await landslideResponse.json();
+        setBackendLandslideData(landslideData.features || landslideData || []);
+      }
+
+      if (seismicResponse.ok) {
+        const seismicData = await seismicResponse.json();
+        setBackendSeismicData(seismicData.features || seismicData || []);
+      }
+
+      if (weatherResponse.ok) {
+        const weatherData = await weatherResponse.json();
+        setBackendWeatherData(weatherData.features || weatherData || []);
+      }
+
+    } catch (error) {
+      console.error('Error fetching backend data:', error);
+    } finally {
+      setIsLoadingBackendData(false);
+    }
+  };
+
+  const getRiskColor = (riskLevel: number) => {
+    if (riskLevel >= 7) return '#dc2626'; // High risk - red
+    if (riskLevel >= 4) return '#d97706'; // Medium risk - orange
+    return '#16a34a'; // Low risk - green
+  };
+
+  const getRiskLabel = (riskLevel: number) => {
+    if (riskLevel >= 7) return 'High';
+    if (riskLevel >= 4) return 'Medium';
+    return 'Low';
+  };
+
+  const createBackendMarkers = () => {
+    if (!map) return;
+
+    // Clear existing backend markers
+    backendDataMarkers.forEach(marker => marker.setMap(null));
+    const newMarkers: google.maps.Marker[] = [];
+
+    // Create flood markers
+    backendFloodData.forEach(flood => {
+      const marker = new google.maps.Marker({
+        position: { lat: flood.latitude, lng: flood.longitude },
+        map: selectedLayer === 'flood' || selectedLayer === 'all' ? map : null,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 8,
+          fillColor: getRiskColor(flood.risk_level),
+          fillOpacity: 0.8,
+          strokeColor: '#fff',
+          strokeWeight: 2
+        },
+        title: `Flood Risk: ${getRiskLabel(flood.risk_level)}`,
+        zIndex: 100
+      });
+
+      const infoWindow = new google.maps.InfoWindow({
+        content: `
+          <div class="p-3">
+            <h3 class="font-bold text-blue-900">🌊 Flood Data</h3>
+            <p><strong>Location:</strong> ${flood.location_name || 'Unknown'}</p>
+            <p><strong>Risk Level:</strong> ${getRiskLabel(flood.risk_level)} (${flood.risk_level}/10)</p>
+            ${flood.water_level ? `<p><strong>Water Level:</strong> ${flood.water_level}m</p>` : ''}
+            ${flood.flood_type ? `<p><strong>Type:</strong> ${flood.flood_type}</p>` : ''}
+            ${flood.last_updated ? `<p><strong>Last Updated:</strong> ${new Date(flood.last_updated).toLocaleString()}</p>` : ''}
+          </div>
+        `
+      });
+
+      marker.addListener('click', () => {
+        currentInfoWindowRef.current?.close();
+        infoWindow.open(map, marker);
+        currentInfoWindowRef.current = infoWindow;
+      });
+
+      newMarkers.push(marker);
+    });
+
+    // Create landslide markers
+    backendLandslideData.forEach(landslide => {
+      const marker = new google.maps.Marker({
+        position: { lat: landslide.latitude, lng: landslide.longitude },
+        map: selectedLayer === 'landslide' || selectedLayer === 'all' ? map : null,
+        icon: {
+          path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+          scale: 8,
+          fillColor: getRiskColor(landslide.risk_level),
+          fillOpacity: 0.8,
+          strokeColor: '#fff',
+          strokeWeight: 2,
+          rotation: 45
+        },
+        title: `Landslide Risk: ${getRiskLabel(landslide.risk_level)}`,
+        zIndex: 100
+      });
+
+      const infoWindow = new google.maps.InfoWindow({
+        content: `
+          <div class="p-3">
+            <h3 class="font-bold text-yellow-900">⛰️ Landslide Data</h3>
+            <p><strong>Location:</strong> ${landslide.location_name || 'Unknown'}</p>
+            <p><strong>Risk Level:</strong> ${getRiskLabel(landslide.risk_level)} (${landslide.risk_level}/10)</p>
+            ${landslide.slope_angle ? `<p><strong>Slope Angle:</strong> ${landslide.slope_angle}°</p>` : ''}
+            ${landslide.soil_type ? `<p><strong>Soil Type:</strong> ${landslide.soil_type}</p>` : ''}
+            ${landslide.last_updated ? `<p><strong>Last Updated:</strong> ${new Date(landslide.last_updated).toLocaleString()}</p>` : ''}
+          </div>
+        `
+      });
+
+      marker.addListener('click', () => {
+        currentInfoWindowRef.current?.close();
+        infoWindow.open(map, marker);
+        currentInfoWindowRef.current = infoWindow;
+      });
+
+      newMarkers.push(marker);
+    });
+
+    // Create seismic markers
+    backendSeismicData.forEach(seismic => {
+      const magnitudeScale = seismic.magnitude ? Math.max(4, seismic.magnitude * 2) : 6;
+      const marker = new google.maps.Marker({
+        position: { lat: seismic.latitude, lng: seismic.longitude },
+        map: selectedLayer === 'seismic' || selectedLayer === 'all' ? map : null,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: magnitudeScale,
+          fillColor: seismic.magnitude && seismic.magnitude >= 5 ? '#dc2626' : seismic.magnitude && seismic.magnitude >= 3 ? '#d97706' : '#16a34a',
+          fillOpacity: 0.8,
+          strokeColor: '#fff',
+          strokeWeight: 2
+        },
+        title: `Seismic Activity: ${seismic.magnitude || 'Unknown'}`,
+        zIndex: 100
+      });
+
+      const infoWindow = new google.maps.InfoWindow({
+        content: `
+          <div class="p-3">
+            <h3 class="font-bold text-red-900">🌍 Seismic Data</h3>
+            <p><strong>Location:</strong> ${seismic.location_name || 'Unknown'}</p>
+            ${seismic.magnitude ? `<p><strong>Magnitude:</strong> ${seismic.magnitude}</p>` : ''}
+            ${seismic.depth ? `<p><strong>Depth:</strong> ${seismic.depth}km</p>` : ''}
+            ${seismic.intensity ? `<p><strong>Intensity:</strong> ${seismic.intensity}</p>` : ''}
+            ${seismic.event_time ? `<p><strong>Event Time:</strong> ${new Date(seismic.event_time).toLocaleString()}</p>` : ''}
+          </div>
+        `
+      });
+
+      marker.addListener('click', () => {
+        currentInfoWindowRef.current?.close();
+        infoWindow.open(map, marker);
+        currentInfoWindowRef.current = infoWindow;
+      });
+
+      newMarkers.push(marker);
+    });
+
+    // Create weather markers
+    backendWeatherData.forEach(weather => {
+      const marker = new google.maps.Marker({
+        position: { lat: weather.latitude, lng: weather.longitude },
+        map: selectedLayer === 'weather' || selectedLayer === 'all' ? map : null,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 6,
+          fillColor: '#0ea5e9',
+          fillOpacity: 0.8,
+          strokeColor: '#fff',
+          strokeWeight: 2
+        },
+        title: `Weather Station: ${weather.station_name || 'Unknown'}`,
+        zIndex: 100
+      });
+
+      const infoWindow = new google.maps.InfoWindow({
+        content: `
+          <div class="p-3">
+            <h3 class="font-bold text-blue-900">🌤️ Weather Data</h3>
+            <p><strong>Station:</strong> ${weather.station_name || 'Unknown'}</p>
+            ${weather.temperature ? `<p><strong>Temperature:</strong> ${weather.temperature}°C</p>` : ''}
+            ${weather.humidity ? `<p><strong>Humidity:</strong> ${weather.humidity}%</p>` : ''}
+            ${weather.pressure ? `<p><strong>Pressure:</strong> ${weather.pressure}hPa</p>` : ''}
+            ${weather.wind_speed ? `<p><strong>Wind Speed:</strong> ${weather.wind_speed}km/h</p>` : ''}
+            ${weather.recorded_at ? `<p><strong>Recorded:</strong> ${new Date(weather.recorded_at).toLocaleString()}</p>` : ''}
+          </div>
+        `
+      });
+
+      marker.addListener('click', () => {
+        currentInfoWindowRef.current?.close();
+        infoWindow.open(map, marker);
+        currentInfoWindowRef.current = infoWindow;
+      });
+
+      newMarkers.push(marker);
+    });
+
+    setBackendDataMarkers(newMarkers);
+  };
+
+  // Fetch backend data on component mount
+  useEffect(() => {
+    fetchBackendData();
+  }, []);
+
+  // Update markers when map, data, or layer changes
+  useEffect(() => {
+    createBackendMarkers();
+  }, [map, backendFloodData, backendLandslideData, backendSeismicData, backendWeatherData, selectedLayer]);
 
   // Legend items configuration
   const legendItems: LegendItem[] = [
@@ -870,6 +1157,7 @@ export function InteractiveMap() {
     { id: "weather", label: "Weather Data", icon: Cloud },
     { id: "flood", label: "Flood Risk", icon: Droplets },
     { id: "landslide", label: "Landslide Risk", icon: Mountain },
+    { id: "seismic", label: "Seismic Activity", icon: Zap },
     { id: "fire", label: "Fire Risk", icon: Flame },
     { id: "energy", label: "Energy", icon: Zap },
   ]
@@ -1623,16 +1911,29 @@ export function InteractiveMap() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-blue-900">Interactive GIS Map</CardTitle>
               
-              {/* Legend Dropdown Button */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <Layers className="h-4 w-4" />
-                    Legend
-                    <ChevronDown className="h-3 w-3" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-80">
+              {/* Data Info and Legend */}
+              <div className="flex items-center gap-2">
+                {/* Backend Data Count Indicator */}
+                {isLoadingBackendData ? (
+                  <Badge variant="secondary" className="text-xs">
+                    Loading data...
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-xs">
+                    {backendFloodData.length + backendLandslideData.length + backendSeismicData.length + backendWeatherData.length} data points
+                  </Badge>
+                )}
+                
+                {/* Legend Dropdown Button */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2">
+                      <Layers className="h-4 w-4" />
+                      Legend
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-80">
                   <DropdownMenuLabel className="flex items-center gap-2">
                     <Info className="h-4 w-4" />
                     Map Legend
@@ -1666,7 +1967,8 @@ export function InteractiveMap() {
                     </p>
                   </div>
                 </DropdownMenuContent>
-              </DropdownMenu>
+                </DropdownMenu>
+              </div>
             </div>
             
             {/* Horizontal Swipeable Buttons */}
