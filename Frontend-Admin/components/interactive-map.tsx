@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
-import { MapPin, Layers, Droplets, Mountain, Zap, Flame, Cloud, ArrowLeft, ChevronDown, Info } from "lucide-react"
+import { MapPin, Layers, Droplets, Mountain, Flame, Cloud, ArrowLeft, ChevronDown, Info, Zap } from "lucide-react"
 import dynamic from "next/dynamic"
 
 // Props for the AlphaEarth overlay component
@@ -128,7 +128,7 @@ function MockMapComponent() {
 		<div className="w-full h-full bg-gradient-to-br from-blue-100 to-green-100 relative overflow-hidden">
 			<div className="absolute inset-0 bg-gradient-to-br from-blue-200/30 to-green-200/30"></div>
 
-			{/* Mock Iloilo City layout */}
+            {/* Mock Butuan City layout */}
 			<div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
 				<div className="relative w-80 h-60">
 					{/* Risk zones as colored circles */}
@@ -152,9 +152,9 @@ function MockMapComponent() {
 				<div className="w-6 h-6 bg-gray-200 rounded"></div>
 			</div>
 
-			{/* Coordinates display */}
+            {/* Coordinates display */}
 			<div className="absolute bottom-4 left-4 bg-white/90 rounded px-3 py-1 text-xs font-mono">
-				10.7302°N, 122.5591°E
+                8.9492°N, 125.5436°E
 			</div>
 		</div>
 	);
@@ -209,15 +209,16 @@ function MapComponent({ center, zoom, onMapLoad }: MapProps) {
 					gestureHandling: "cooperative",
 					tilt: 67.5,
 					heading: 0,
-					restriction: {
-						latLngBounds: {
-							north: 11.0,
-							south: 10.5,
-							west: 122.0,
-							east: 123.0
-						},
-						strictBounds: false
-					},
+                    restriction: {
+                        // Butuan City bounding box (approx)
+                        latLngBounds: {
+                            north: 9.10,
+                            south: 8.80,
+                            west: 125.40,
+                            east: 125.70
+                        },
+                        strictBounds: false
+                    },
 					keyboardShortcuts: false,
 					clickableIcons: true,
 					mapTypeId: "hybrid",
@@ -614,8 +615,11 @@ const render = (status: Status): React.ReactElement => {
 };
 
 export function InteractiveMap() {
-	const [selectedLocation, setSelectedLocation] = useState<{ lat: number, lng: number }>({ lat: 10.7302, lng: 122.5591 });
+    // Default to Butuan City
+    const [selectedLocation, setSelectedLocation] = useState<{ lat: number, lng: number }>({ lat: 8.9492, lng: 125.5436 });
+    const [currentMapCenter, setCurrentMapCenter] = useState<{ lat: number, lng: number }>({ lat: 8.9492, lng: 125.5436 });
 	const [selectedLayer, setSelectedLayer] = useState<string>("all");
+	const [queryRadius, setQueryRadius] = useState<number>(50);
 	const [apiKeyStatus, setApiKeyStatus] = useState<'checking' | 'valid' | 'invalid' | 'billing-error'>('checking');
 	const [googleMapsError, setGoogleMapsError] = useState<string | null>(null);
 	const [map, setMap] = useState<google.maps.Map | null>(null);
@@ -648,6 +652,7 @@ export function InteractiveMap() {
 	const [animationFrame, setAnimationFrame] = useState(0);
 	const [landslideMarkers, setLandslideMarkers] = useState<google.maps.Marker[]>([]);
 	const [fireMarkers, setFireMarkers] = useState<google.maps.Marker[]>([]);
+	const [seismicMarkers, setSeismicMarkers] = useState<google.maps.Marker[]>([]);
 	const [landslideZones, setLandslideZones] = useState<google.maps.Polygon[]>([]);
 	const [fireZones, setFireZones] = useState<google.maps.Polygon[]>([]);
 	const [energyZones, setEnergyZones] = useState<google.maps.Polygon[]>([]);
@@ -728,15 +733,18 @@ export function InteractiveMap() {
 	// Functions to fetch backend data
 	const fetchBackendData = async () => {
 		setIsLoadingBackendData(true);
-		const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+		const backendUrl = BACKEND_BASE_URL;
 
 		try {
+			// Quick health check first
+			await fetch(`${backendUrl}/health`, { method: 'GET' });
+
 			// Fetch all data types in parallel
 			const [floodResponse, landslideResponse, seismicResponse, weatherResponse] = await Promise.all([
-				fetch(`${backendUrl}/api/flood-data`),
-				fetch(`${backendUrl}/api/landslide-data`),
-				fetch(`${backendUrl}/api/seismic-data`),
-				fetch(`${backendUrl}/api/weather-data`)
+				fetch(`${backendUrl}/api/flood-data`).catch(() => new Response(null, { status: 503 })),
+				fetch(`${backendUrl}/api/landslide-data`).catch(() => new Response(null, { status: 503 })),
+				fetch(`${backendUrl}/api/seismic-data`).catch(() => new Response(null, { status: 503 })),
+				fetch(`${backendUrl}/api/weather-data`).catch(() => new Response(null, { status: 503 }))
 			]);
 
 			if (floodResponse.ok) {
@@ -761,6 +769,7 @@ export function InteractiveMap() {
 
 		} catch (error) {
 			console.error('Error fetching backend data:', error);
+			console.warn(`Backend at ${backendUrl} might be offline. Start PivotBackend on port 8000 or set NEXT_PUBLIC_BACKEND_BASE_URL.`);
 		} finally {
 			setIsLoadingBackendData(false);
 		}
@@ -1178,7 +1187,7 @@ export function InteractiveMap() {
 	]
 
 	// Backend API base URL
-	const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_BASE_URL || 'http://localhost:5000'
+	const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_BASE_URL || 'http://localhost:8000'
 
 	// Data fetching functions
 	const fetchFloodData = async () => {
