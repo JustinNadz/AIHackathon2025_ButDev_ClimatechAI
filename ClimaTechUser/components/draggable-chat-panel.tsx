@@ -7,6 +7,7 @@ import { X, Send, Grip, Bot, User, ChevronUp, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
+import { callEnhancedAssistant, type AssistantRequest } from "@/lib/api"
 
 interface DraggableChatPanelProps {
   isOpen: boolean
@@ -89,8 +90,8 @@ export default function DraggableChatPanel({ isOpen, onToggle, selectedLocation 
     setIsLoading(true)
 
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:5000"
-      const requestBody: any = {
+      // Prepare request for enhanced assistant API
+      const requestBody: AssistantRequest = {
         question: input.trim(),
       }
 
@@ -100,24 +101,23 @@ export default function DraggableChatPanel({ isOpen, onToggle, selectedLocation 
         requestBody.lng = selectedLocation.lng
       }
 
-      const response = await fetch(`${backendUrl}/api/assistant/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Backend error: ${response.status}`)
+      // Call the enhanced assistant API
+      const data = await callEnhancedAssistant(requestBody)
+      
+      // Create a comprehensive response message that includes model information
+      let responseContent = data.response || "I'm sorry, I couldn't process your request at the moment. Please try again."
+      
+      // Add model information as a small note (optional)
+      if (data.model_used && data.model_used !== "error_fallback") {
+        const modelName = data.model_used === "google/gemma-3-27b-it:free" ? "🤖 Enhanced AI" : 
+                         data.model_used === "rag_fallback" ? "📚 Knowledge Base" : "AI Assistant"
+        responseContent += `\n\n*Powered by ${modelName}*`
       }
-
-      const data = await response.json()
       
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: data.advice || "I'm sorry, I couldn't process your request at the moment. Please try again.",
+        content: responseContent,
       }
 
       setMessages(prev => [...prev, assistantMessage])
@@ -126,7 +126,7 @@ export default function DraggableChatPanel({ isOpen, onToggle, selectedLocation 
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: "I'm sorry, I'm having trouble connecting to the backend right now. Please make sure the backend server is running on http://localhost:5000 and try again.",
+        content: "I'm sorry, I'm having trouble connecting to the backend right now. Please make sure the backend server is running and try again.",
       }
       setMessages(prev => [...prev, errorMessage])
     } finally {
