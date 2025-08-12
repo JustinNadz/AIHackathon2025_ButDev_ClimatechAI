@@ -160,40 +160,6 @@ export default function PredictiveAnalyticsPage() {
           </div>
         </div>
 
-        {/* AI Model Performance */}
-        <Card className="border-blue-200">
-          <CardHeader>
-            <CardTitle className="text-blue-900 flex items-center">
-              <Brain className="w-5 h-5 mr-2" />
-              AI Model Performance
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-blue-900 mb-2">94.2%</div>
-                <div className="text-sm text-blue-600">Overall Accuracy</div>
-                <Progress value={94.2} className="mt-2 h-2" />
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-green-600 mb-2">97.8%</div>
-                <div className="text-sm text-blue-600">Flood Prediction</div>
-                <Progress value={97.8} className="mt-2 h-2" />
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-yellow-600 mb-2">89.5%</div>
-                <div className="text-sm text-blue-600">Landslide Prediction</div>
-                <Progress value={89.5} className="mt-2 h-2" />
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-purple-600 mb-2">92.1%</div>
-                <div className="text-sm text-blue-600">Power Outage Prediction</div>
-                <Progress value={92.1} className="mt-2 h-2" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Prediction Tabs */}
         <Tabs defaultValue="flood" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4 bg-blue-50">
