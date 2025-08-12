@@ -188,7 +188,7 @@ def get_landslide_data_nearby(db: Session, latitude: float, longitude: float, ra
 def add_weather_data(db: Session, geometry_wkt: str, temperature: float = None, humidity: float = None,
                     rainfall: float = None, wind_speed: float = None, wind_direction: float = None,
                     pressure: float = None, station_name: str = None, recorded_at: datetime = None,
-                    source: str = None, metadata: dict = None):
+                    source: str = None, weather_metadata: dict = None):
     """Add weather data to the database"""
     weather_data = WeatherData(
         geometry=geometry_wkt,
@@ -201,7 +201,7 @@ def add_weather_data(db: Session, geometry_wkt: str, temperature: float = None, 
         station_name=station_name,
         recorded_at=recorded_at,
         source=source,
-        metadata=metadata
+        weather_metadata=weather_metadata
     )
     db.add(weather_data)
     db.commit()

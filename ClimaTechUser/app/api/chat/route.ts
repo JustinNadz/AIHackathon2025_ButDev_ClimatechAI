@@ -1,27 +1,43 @@
-import { streamText } from "ai"
-import { openai } from "@ai-sdk/openai"
-
 export async function POST(req: Request) {
-  const { messages } = await req.json()
-
-  const result = await streamText({
-    model: openai("gpt-4o"),
-    system: `You are a helpful AI assistant for a map-based application. You can help users with:
-    - Weather information and forecasts for any location
-    - Information about places, landmarks, and attractions
-    - Travel recommendations and local insights
-    - Geographic and cultural information
-    - General questions about maps and navigation
+  try {
+    const { messages } = await req.json()
     
-    When users provide coordinates or mention selecting a location on the map, provide detailed information about that area including:
-    - Current weather conditions and forecast
-    - Notable landmarks or attractions nearby
-    - Local culture and interesting facts
-    - Travel tips and recommendations
+    // Get the last user message
+    const lastMessage = messages[messages.length - 1]
+    const question = lastMessage?.content || "Hello"
     
-    Be friendly, informative, and engaging in your responses. Always provide practical and accurate information.`,
-    messages,
-  })
+    // Forward to backend
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000"
+    const response = await fetch(`${backendUrl}/api/assistant/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ question }),
+    })
 
-  return result.toTextStreamResponse()
+    if (!response.ok) {
+      throw new Error(`Backend error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    
+    return new Response(JSON.stringify({
+      id: Date.now().toString(),
+      role: "assistant", 
+      content: data.advice || "I'm sorry, I couldn't process your request."
+    }), {
+      headers: { "Content-Type": "application/json" }
+    })
+  } catch (error) {
+    console.error("Chat proxy error:", error)
+    return new Response(JSON.stringify({
+      id: Date.now().toString(),
+      role: "assistant",
+      content: "I'm sorry, I'm having trouble connecting to the backend. Please make sure it's running."
+    }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    })
+  }
 }

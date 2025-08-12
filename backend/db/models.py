@@ -43,16 +43,7 @@ class WeatherData(Base):
     station_name = Column(String(255), nullable=True)
     recorded_at = Column(DateTime(timezone=True), nullable=True)
     source = Column(String(100), nullable=True)  # e.g., 'PAGASA', 'weather_station'
+    weather_metadata = Column(JSON, nullable=True)  # Additional data like Filipino weather conditions
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
-class EmergencyProtocol(Base):
-    __tablename__ = "emergency_protocols"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(255), nullable=False)
-    type = Column(String(100), nullable=False)  # e.g., 'flood', 'earthquake', 'landslide', 'general'
-    description = Column(Text, nullable=True)
-    steps = Column(JSON, nullable=True)  # PostgreSQL JSON type for array of steps
-    status = Column(String(50), default='active')  # 'active', 'inactive', 'draft'
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

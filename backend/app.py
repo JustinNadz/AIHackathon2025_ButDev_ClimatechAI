@@ -20,17 +20,22 @@ from db.queries import (
 )
 from vectordb.ingest import add_documents
 from ai.rag import answer_with_rag
+from ai.base_model import get_base_model  # Import our new base model
 from db.setup import setup_database
 from db.base import SessionLocal, engine
 from sqlalchemy import text
 import json
 import traceback
+from datetime import datetime
 
 # Setup database with PostGIS
 setup_database()
 
 app = Flask(__name__, static_folder='static')
 CORS(app)  # Enable CORS for all routes
+
+# Enable CORS for all routes
+CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000"])
 
 
 @app.route("/")
@@ -229,6 +234,514 @@ def assistant():
         print(f"❌ Error in assistant endpoint: {e}")
         print(f"📋 Traceback: {traceback.format_exc()}")
         return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+    finally:
+        if db:
+            db.close()
+
+
+# ============================================================================
+# ENHANCED AI ASSISTANT ENDPOINT (Base Model + RAG Support)
+# ============================================================================
+
+@app.route("/api/assistant/enhanced", methods=["POST"])
+def enhanced_assistant():
+    """Enhanced AI assistant using google/gemma-3-27b-it:free as primary model with RAG backup.
+    
+    This endpoint provides intelligent climate and disaster advice using:
+    1. Primary: google/gemma-3-27b-it:free model for natural language understanding
+    2. Backup: RAG system with embedded knowledge base
+    3. Real-time hazard data integration
+    
+    Request JSON:
+      { "lat": number, "lng": number, "question": string }
+    Optional parameters:
+      hours_earthquake: int (default 24)
+      eq_radius_km: float (default 100)
+      weather_hours: int (default 3)
+      weather_radius_km: float (default 100)
+      use_rag_fallback: bool (default true)
+    """
+    db = None
+    try:
+        payload = request.get_json(force=True) or {}
+        lat = payload.get("lat")
+        lng = payload.get("lng")
+        question = payload.get("question") or "What should I do to prepare for potential climate hazards in this area?"
+        
+        # Location is now optional - we can handle general questions too
+        has_location = lat is not None and lng is not None
+
+        # Configuration parameters
+        hours_earthquake = int(payload.get("hours_earthquake", 24))
+        eq_radius_km = float(payload.get("eq_radius_km", 100.0))
+        weather_hours = int(payload.get("weather_hours", 3))
+        weather_radius_km = float(payload.get("weather_radius_km", 100.0))
+        use_rag_fallback = payload.get("use_rag_fallback", True)
+
+        print(f"🤖 Enhanced Assistant Request: {question}" + (f" at ({lat:.5f}, {lng:.5f})" if has_location else " (general question)"))
+
+        # Fast greeting detection for quick responses
+        greeting_words = ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "greetings", "hola", "bonjour"]
+        question_lower = question.lower().strip()
+        
+        # Check if the question is a simple greeting
+        is_greeting = any(greeting in question_lower for greeting in greeting_words) and len(question.split()) <= 3
+        
+        # Check for questions about development/creator
+        developer_keywords = ["who developed", "who created", "who made", "who built", "your developer", "your creator", "who are you made by", "development team", "your team"]
+        is_developer_question = any(keyword in question_lower for keyword in developer_keywords)
+        
+        # Check for location-specific questions that should trigger map interaction
+        philippine_cities = {
+            "manila": {"lat": 14.5995, "lng": 120.9842},
+            "quezon city": {"lat": 14.6760, "lng": 121.0437},
+            "cebu city": {"lat": 10.3157, "lng": 123.8854},
+            "cebu": {"lat": 10.3157, "lng": 123.8854},
+            "davao city": {"lat": 7.1907, "lng": 125.4553},
+            "davao": {"lat": 7.1907, "lng": 125.4553},
+            "iloilo city": {"lat": 10.7202, "lng": 122.5621},
+            "iloilo": {"lat": 10.7202, "lng": 122.5621},
+            "baguio": {"lat": 16.4023, "lng": 120.5960},
+            "zamboanga city": {"lat": 6.9214, "lng": 122.0790},
+            "zamboanga": {"lat": 6.9214, "lng": 122.0790},
+            "cagayan de oro": {"lat": 8.4542, "lng": 124.6319},
+            "general santos": {"lat": 6.1164, "lng": 125.1716}
+        }
+        
+        detected_city = None
+        for city_name, coords in philippine_cities.items():
+            if city_name in question_lower:
+                detected_city = {"name": city_name.title(), "coords": coords}
+                break
+        
+        # Check for weather-specific questions about cities
+        weather_keywords = ["weather", "temperature", "rain", "rainfall", "humidity", "wind"]
+        is_weather_question = any(keyword in question_lower for keyword in weather_keywords)
+        
+        if detected_city and is_weather_question:
+            # Handle city-specific weather questions with real database data
+            try:
+                print(f"🌤️ Weather question detected for {detected_city['name']}")
+                
+                db = SessionLocal()
+                # Get real weather data for the detected city
+                lat, lng = detected_city['coords']['lat'], detected_city['coords']['lng']
+                nearest_weather = get_nearest_recent_weather(db, latitude=lat, longitude=lng, hours=24, max_km=10.0)
+                
+                if nearest_weather:
+                    # Create response with real weather data
+                    temp = nearest_weather.get("temperature")
+                    humidity = nearest_weather.get("humidity")
+                    rainfall = nearest_weather.get("rainfall", 0)
+                    wind_speed = nearest_weather.get("wind_speed")
+                    station_name = nearest_weather.get("station_name", f"{detected_city['name']} Station")
+                    recorded_time = nearest_weather.get("recorded_at")
+                    
+                    weather_response = f"""🌤️ **Current Weather in {detected_city['name']}**
+
+**Real-time Data from {station_name}:**"""
+                    
+                    if temp is not None:
+                        weather_response += f"\n🌡️ **Temperature:** {temp:.1f}°C"
+                    
+                    if humidity is not None:
+                        weather_response += f"\n💧 **Humidity:** {humidity:.0f}%"
+                    
+                    if rainfall > 0:
+                        weather_response += f"\n🌧️ **Rainfall:** {rainfall:.1f}mm/h"
+                    else:
+                        weather_response += f"\n☀️ **Rainfall:** No rain currently"
+                    
+                    if wind_speed is not None:
+                        weather_response += f"\n💨 **Wind Speed:** {wind_speed:.1f}km/h"
+                    
+                    if recorded_time:
+                        try:
+                            # recorded_time is already an ISO string from the database query
+                            # Parse it back to datetime for formatting, or use as-is
+                            from datetime import datetime
+                            if isinstance(recorded_time, str):
+                                # Parse ISO string back to datetime
+                                parsed_time = datetime.fromisoformat(recorded_time.replace('Z', '+00:00') if recorded_time.endswith('Z') else recorded_time)
+                                weather_response += f"\n⏰ **Last Updated:** {parsed_time.strftime('%B %d, %Y at %I:%M %p')}"
+                            else:
+                                # If it's already a datetime object
+                                weather_response += f"\n⏰ **Last Updated:** {recorded_time.strftime('%B %d, %Y at %I:%M %p')}"
+                        except (ValueError, TypeError):
+                            # If parsing fails, just show the raw timestamp
+                            weather_response += f"\n⏰ **Last Updated:** {recorded_time}"
+                    
+                    weather_response += f"""
+
+**Safety Notes for {detected_city['name']}:**
+• Monitor weather conditions regularly
+• Stay updated with local advisories
+• Keep emergency contacts handy
+• Report any unusual weather to local authorities
+
+*Weather data from ClimaTech database | Developed by ButDev Team for AI Hackathon 2025*"""
+                
+                else:
+                    weather_response = f"""🌤️ **Weather Information for {detected_city['name']}**
+
+Unfortunately, I don't have current weather data for {detected_city['name']} in my database at the moment.
+
+**What you can do:**
+• Check [PAGASA Weather](https://www.pagasa.dost.gov.ph/) for official updates
+• Monitor local weather stations
+• Use weather apps for real-time conditions
+
+I'll continue to monitor and update our database. Try asking again later!
+
+*Developed by ButDev Team for AI Hackathon 2025*"""
+                
+                return jsonify({
+                    "location": {"lat": lat, "lng": lng},
+                    "question": question,
+                    "hazards": {
+                        "flood_risk": None,
+                        "landslide_risk": None,
+                        "recent_earthquakes": 0,
+                        "earthquake_details": [],
+                        "weather": nearest_weather,
+                    },
+                    "response": weather_response,
+                    "model_used": "city_weather_database",
+                    "context_provided": [f"🌤️ Real weather data for {detected_city['name']}"],
+                    "timestamp": json.loads(json.dumps({"timestamp": None}, default=str)),
+                    "detected_city": detected_city,
+                    "is_floating_response": True  # Signal frontend to use floating chat
+                })
+                
+            except Exception as weather_error:
+                print(f"❌ Error getting weather for {detected_city['name']}: {weather_error}")
+            finally:
+                if 'db' in locals():
+                    db.close()
+        
+        if is_greeting:
+            # Provide fast greeting response
+            greeting_response = """Hi there! 👋 I'm ClimatechAI, your personal climate and disaster preparedness assistant for the Philippines.
+
+I was developed by the **ButDev Team** for the **AI Hackathon 2025** to help keep you safe from natural disasters and climate risks.
+
+I can help you with:
+🌊 Flood risk assessment and safety tips
+🏔️ Landslide hazard information  
+🌋 Earthquake monitoring and preparedness
+🌤️ Weather-based risk analysis
+🚨 Emergency preparedness guidance
+
+Feel free to ask me about climate risks at your location, or click anywhere on the map to get a detailed safety assessment for that area!
+
+How can I help keep you safe today?"""
+            
+            return jsonify({
+                "location": {"lat": lat, "lng": lng} if has_location else None,
+                "question": question,
+                "hazards": {
+                    "flood_risk": None,
+                    "landslide_risk": None,
+                    "recent_earthquakes": 0,
+                    "earthquake_details": [],
+                    "weather": None,
+                },
+                "response": greeting_response,
+                "model_used": "fast_greeting_response",
+                "context_provided": ["🚀 Fast greeting response - no hazard data needed"],
+                "timestamp": json.loads(json.dumps({"timestamp": None}, default=str)),
+                "detected_city": detected_city
+            })
+        
+        if is_developer_question:
+            # Provide fast developer information response
+            developer_response = """I am **ClimatechAI**, an advanced climate and disaster preparedness assistant specifically designed for the Philippines! 🇵🇭
+
+**👥 Development Team:** I was created by the **ButDev Team** as part of the **AI Hackathon 2025**
+
+**🎯 My Mission:** To help protect lives and communities by providing real-time climate risk assessments, disaster preparedness guidance, and location-specific safety recommendations.
+
+**🚀 My Capabilities:**
+- Real-time flood, landslide, and earthquake risk analysis
+- Weather-based hazard assessment  
+- Emergency preparedness planning
+- Location-specific safety recommendations
+- Integration with Philippine disaster data sources
+
+**🌟 What makes me special:** I combine cutting-edge AI technology with comprehensive Philippine disaster data to provide you with the most accurate and actionable safety information possible.
+
+The ButDev Team built me to be your trusted companion in staying safe from natural disasters. How can I help protect you today?"""
+            
+            return jsonify({
+                "location": {"lat": lat, "lng": lng} if has_location else None,
+                "question": question,
+                "hazards": {
+                    "flood_risk": None,
+                    "landslide_risk": None,
+                    "recent_earthquakes": 0,
+                    "earthquake_details": [],
+                    "weather": None,
+                },
+                "response": developer_response,
+                "model_used": "fast_developer_response",
+                "context_provided": ["🚀 Fast developer info response - no hazard data needed"],
+                "timestamp": json.loads(json.dumps({"timestamp": None}, default=str)),
+                "detected_city": detected_city
+            })
+
+        # If we have location data, get real-time hazard data
+        if has_location:
+            db = SessionLocal()
+            flood_risk = get_flood_risk_at_point(db, latitude=lat, longitude=lng)
+            landslide_risk = get_landslide_risk_at_point(db, latitude=lat, longitude=lng)
+            recent_eq = get_recent_earthquakes_nearby(db, latitude=lat, longitude=lng, hours=hours_earthquake, max_km=eq_radius_km)
+            nearest_weather = get_nearest_recent_weather(db, latitude=lat, longitude=lng, hours=weather_hours, max_km=weather_radius_km)
+
+            # Build comprehensive context for the AI model
+            hazard_context = []
+            
+            # Remove specific location coordinates from context
+            # hazard_context.append(f"📍 Location: {lat:.5f}, {lng:.5f}")
+            
+            # Flood risk context
+            if flood_risk is not None:
+                risk_level = "low" if flood_risk <= 1.5 else "medium" if flood_risk <= 2.5 else "high"
+                hazard_context.append(f"🌊 Flood Risk: {risk_level} (level {flood_risk:.1f}/3.0)")
+            else:
+                hazard_context.append("🌊 Flood Risk: No data available")
+            
+            # Landslide risk context  
+            if landslide_risk is not None:
+                risk_level = "low" if landslide_risk <= 1.5 else "medium" if landslide_risk <= 2.5 else "high"
+                hazard_context.append(f"⛰️ Landslide Risk: {risk_level} (level {landslide_risk:.1f}/3.0)")
+            else:
+                hazard_context.append("⛰️ Landslide Risk: No data available")
+            
+            # Earthquake context
+            if recent_eq:
+                strongest = max(recent_eq, key=lambda e: (e["magnitude"] or 0))
+                nearest = min(recent_eq, key=lambda e: (e["distance_km"] or 1e9))
+                hazard_context.append(f"🌋 Recent Earthquakes: {len(recent_eq)} events in last {hours_earthquake}h")
+                hazard_context.append(f"   - Strongest: M{strongest['magnitude']:.1f}")
+                hazard_context.append(f"   - Nearest: {nearest['distance_km']:.1f}km away")
+            else:
+                hazard_context.append(f"🌋 Recent Earthquakes: No significant activity in last {hours_earthquake}h")
+            
+            # Weather context
+            if nearest_weather:
+                temp = nearest_weather.get("temperature")
+                humidity = nearest_weather.get("humidity")
+                rainfall = nearest_weather.get("rainfall", 0)
+                wind_speed = nearest_weather.get("wind_speed")
+                distance = nearest_weather.get("distance_km")
+                
+                weather_info = f"🌤️ Current Weather (from {distance:.1f}km away):"
+                if temp is not None:
+                    weather_info += f" {temp:.1f}°C"
+                if humidity is not None:
+                    weather_info += f", {humidity:.0f}% humidity"
+                if rainfall > 0:
+                    weather_info += f", {rainfall:.1f}mm/h rainfall"
+                if wind_speed is not None:
+                    weather_info += f", {wind_speed:.1f}km/h wind"
+                hazard_context.append(weather_info)
+            else:
+                hazard_context.append(f"🌤️ Current Weather: No recent data within {weather_radius_km}km")
+
+            # Create the system prompt for the base model
+            system_prompt = """You are ClimatechAI, an expert environmental and disaster preparedness assistant for the Philippines. 
+
+You were developed by the ButDev Team for the AI Hackathon 2025 to help protect lives and communities from natural disasters and climate risks.
+
+Your role is to:
+1. Analyze climate and natural disaster risks
+2. Provide practical, actionable safety recommendations
+3. Give location-specific advice based on real-time hazard data
+4. Prioritize immediate safety concerns
+5. Offer both short-term and long-term preparedness guidance
+
+Guidelines:
+- Be concise but thorough
+- Use bullet points for actionable recommendations
+- Prioritize immediate safety over long-term planning
+- Consider Filipino context (climate, geography, culture)
+- If evacuation might be needed, be specific about preparation steps
+- Always consider multiple hazard interactions (e.g., earthquakes + landslides)
+- If asked about your development, mention you were created by ButDev Team for AI Hackathon 2025
+- Do NOT mention specific latitude/longitude coordinates in your response
+- Make any URLs clickable by formatting them as [link text](URL)
+- Focus on the area/region rather than exact coordinates
+
+Response format:
+- Start with immediate safety assessment
+- List prioritized recommendations
+- Include emergency contacts reminder if needed
+- End with monitoring/follow-up advice"""
+
+            # Combine user question with hazard context
+            user_prompt = f"""User Question: {question}
+
+Current Hazard Assessment:
+{chr(10).join(hazard_context)}
+
+Please provide specific, actionable advice for this location considering all the hazard data above."""
+
+            # Try to get response from base model first
+            response_text = ""
+            model_used = "unknown"
+            
+            try:
+                print("🚀 Attempting response with google/gemma-3-27b-it:free model...")
+                
+                # Get the base model instance
+                base_model = get_base_model()
+                
+                # Get completion from the base model
+                response_text = base_model.chat_completion(
+                    user_message=user_prompt,
+                    system_message=system_prompt,
+                    temperature=0.3,  # Slightly creative but focused
+                    max_tokens=1000   # Reasonable response length
+                )
+                
+                model_used = "google/gemma-3-27b-it:free"
+                print(f"✅ Successfully generated response with base model ({len(response_text)} chars)")
+                
+            except Exception as base_model_error:
+                print(f"⚠️ Base model failed: {base_model_error}")
+                
+                if use_rag_fallback:
+                    try:
+                        print("🔄 Falling back to RAG system...")
+                        
+                        # Prepare question for RAG system
+                        rag_question = f"{question}\n\nContext:\n{chr(10).join(hazard_context)}"
+                        
+                        # Use existing RAG system as fallback
+                        response_text = answer_with_rag(rag_question, collection_name="preparedness")
+                        model_used = "rag_fallback"
+                        print(f"✅ RAG fallback successful ({len(response_text)} chars)")
+                        
+                    except Exception as rag_error:
+                        print(f"❌ RAG fallback also failed: {rag_error}")
+                        response_text = "I apologize, but I'm currently experiencing technical difficulties. Please contact local emergency services for immediate hazard information, and try again later."
+                        model_used = "error_fallback"
+                else:
+                    response_text = "Base model is currently unavailable. Please enable RAG fallback or try again later."
+                    model_used = "error_no_fallback"
+
+            # Prepare the response
+            response = {
+                "location": {"lat": lat, "lng": lng},
+                "question": question,
+                "hazards": {
+                    "flood_risk": flood_risk,
+                    "landslide_risk": landslide_risk,
+                    "recent_earthquakes": len(recent_eq) if recent_eq else 0,
+                    "earthquake_details": recent_eq,
+                    "weather": nearest_weather,
+                },
+                "response": response_text,
+                "model_used": model_used,
+                "context_provided": hazard_context,
+                "timestamp": json.loads(json.dumps({"timestamp": None}, default=str))  # Will be current time
+            }
+
+            print(f"🎯 Enhanced assistant response ready (model: {model_used})")
+            return jsonify(response)
+        else:
+            # Handle general questions without location using AI model
+            try:
+                print("🚀 Processing general question without location data...")
+                
+                # Create system prompt for general questions
+                general_system_prompt = """You are ClimatechAI, an expert environmental and disaster preparedness assistant for the Philippines. 
+
+You were developed by the ButDev Team for the AI Hackathon 2025 to help protect lives and communities from natural disasters and climate risks.
+
+Your role is to:
+1. Provide general climate and disaster preparedness knowledge
+2. Give advice about natural disasters in the Philippines
+3. Explain emergency preparedness concepts
+4. Answer questions about climate risks and safety
+5. Provide information about Philippine weather patterns and natural hazards
+
+Guidelines:
+- Be helpful and informative
+- Focus on Philippine context when relevant
+- Provide practical, actionable advice
+- If asked about your development, mention you were created by ButDev Team for AI Hackathon 2025
+- If the user asks about specific locations, suggest they provide coordinates or click on the map
+- Make any URLs clickable by formatting them as [link text](URL)
+- Be concise but comprehensive
+
+Do not mention specific coordinates or location data unless the user provides them."""
+
+                # Get the base model instance
+                base_model = get_base_model()
+                
+                # Get completion from the base model for general questions
+                response_text = base_model.chat_completion(
+                    user_message=question,
+                    system_message=general_system_prompt,
+                    temperature=0.4,  # Slightly more creative for general questions
+                    max_tokens=800   # Reasonable response length
+                )
+                
+                model_used = "google/gemma-3-27b-it:free"
+                print(f"✅ Successfully generated general response with base model ({len(response_text)} chars)")
+                
+            except Exception as base_model_error:
+                print(f"⚠️ Base model failed for general question: {base_model_error}")
+                
+                if use_rag_fallback:
+                    try:
+                        print("🔄 Falling back to RAG system for general question...")
+                        
+                        # Use existing RAG system as fallback
+                        response_text = answer_with_rag(question, collection_name="preparedness")
+                        model_used = "rag_fallback"
+                        print(f"✅ RAG fallback successful for general question ({len(response_text)} chars)")
+                        
+                    except Exception as rag_error:
+                        print(f"❌ RAG fallback also failed for general question: {rag_error}")
+                        response_text = """I'm currently experiencing technical difficulties. However, I can still help you with general disaster preparedness advice!
+
+For specific climate risk assessments, please:
+1. Click on a location on the map, or
+2. Provide your coordinates in your question
+
+I'm here to help keep you safe from natural disasters in the Philippines. Feel free to ask about general preparedness, weather safety, or emergency planning!"""
+                        model_used = "error_fallback"
+                else:
+                    response_text = "I'm currently unavailable for general questions. Please try again later or provide a specific location for climate risk assessment."
+                    model_used = "error_no_fallback"
+
+            return jsonify({
+                "location": None,
+                "question": question,
+                "hazards": {
+                    "flood_risk": None,
+                    "landslide_risk": None,
+                    "recent_earthquakes": 0,
+                    "earthquake_details": [],
+                    "weather": None,
+                },
+                "response": response_text,
+                "model_used": model_used,
+                "context_provided": ["🌐 General question response - no location data needed"],
+                "timestamp": json.loads(json.dumps({"timestamp": None}, default=str)),
+                "detected_city": detected_city
+            })
+
+    except Exception as e:
+        print(f"❌ Error in enhanced assistant endpoint: {e}")
+        print(f"📋 Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "error": str(e), 
+            "traceback": traceback.format_exc(),
+            "endpoint": "enhanced_assistant"
+        }), 500
     finally:
         if db:
             db.close()
@@ -1010,6 +1523,155 @@ def get_weather_stats():
         
     except Exception as e:
         print(f"❌ Error in get_weather_stats: {e}")
+        print(f"📋 Traceback: {traceback.format_exc()}")
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+    
+    finally:
+        if db:
+            db.close()
+
+
+@app.route("/api/weather-data/frontend-cities", methods=["GET"])
+def get_frontend_cities_weather():
+    """Get weather data for the specific Philippine cities listed in map-component.tsx"""
+    db = None
+    try:
+        print("🗺️ Getting frontend cities weather data...")
+        db = SessionLocal()
+        
+        # Exact coordinates from ClimaTechUser/components/map-component.tsx lines 29-39
+        frontend_cities = [
+            {"name": "Manila", "lat": 14.5995, "lng": 120.9842},
+            {"name": "Quezon City", "lat": 14.6760, "lng": 121.0437},
+            {"name": "Cebu City", "lat": 10.3157, "lng": 123.8854},
+            {"name": "Davao City", "lat": 7.1907, "lng": 125.4553},
+            {"name": "Iloilo City", "lat": 10.7202, "lng": 122.5621},
+            {"name": "Baguio", "lat": 16.4023, "lng": 120.5960},
+            {"name": "Zamboanga City", "lat": 6.9214, "lng": 122.0790},
+            {"name": "Cagayan de Oro", "lat": 8.4542, "lng": 124.6319},
+            {"name": "General Santos", "lat": 6.1164, "lng": 125.1716}
+        ]
+        
+        cities_weather = []
+        successful_cities = 0
+        
+        for city in frontend_cities:
+            try:
+                # Query weather data for this specific city location
+                query = text("""
+                    SELECT 
+                        id,
+                        station_name,
+                        temperature,
+                        humidity,
+                        rainfall,
+                        wind_speed,
+                        wind_direction,
+                        pressure,
+                        weather_metadata->>'description' as weather_condition,
+                        recorded_at,
+                        ST_X(geometry) as longitude,
+                        ST_Y(geometry) as latitude,
+                        created_at
+                    FROM weather_data 
+                    WHERE ST_DWithin(
+                        geometry::geography, 
+                        ST_SetSRID(ST_Point(:lng, :lat), 4326)::geography, 
+                        5000  -- 5km radius
+                    )
+                    ORDER BY created_at DESC 
+                    LIMIT 1
+                """)
+                
+                result = db.execute(query, {"lat": city["lat"], "lng": city["lng"]})
+                weather_row = result.fetchone()
+                
+                if weather_row:
+                    # Weather data found in database
+                    city_weather = {
+                        "id": weather_row[0],
+                        "city_name": city["name"],
+                        "station_name": weather_row[1],
+                        "coordinates": {
+                            "lat": city["lat"],
+                            "lng": city["lng"]
+                        },
+                        "temperature": weather_row[2],
+                        "humidity": weather_row[3],
+                        "rainfall": weather_row[4],
+                        "wind_speed": weather_row[5],
+                        "wind_direction": weather_row[6],
+                        "pressure": weather_row[7],
+                        "weather_condition": weather_row[8],
+                        "filipino_condition": weather_row[8],  # Filipino weather condition
+                        "recorded_at": weather_row[9].isoformat() if weather_row[9] else None,
+                        "data_source": "database",
+                        "status": "success"
+                    }
+                    successful_cities += 1
+                else:
+                    # No weather data found, return city info with placeholder
+                    city_weather = {
+                        "id": None,
+                        "city_name": city["name"],
+                        "station_name": f"{city['name']} Weather Station",
+                        "coordinates": {
+                            "lat": city["lat"],
+                            "lng": city["lng"]
+                        },
+                        "temperature": None,
+                        "humidity": None,
+                        "rainfall": None,
+                        "wind_speed": None,
+                        "wind_direction": None,
+                        "pressure": None,
+                        "weather_condition": "No data available",
+                        "filipino_condition": "No data available",
+                        "recorded_at": None,
+                        "data_source": "none",
+                        "status": "no_data"
+                    }
+                
+                cities_weather.append(city_weather)
+                
+            except Exception as city_error:
+                print(f"❌ Error processing {city['name']}: {city_error}")
+                # Add error entry for this city
+                cities_weather.append({
+                    "id": None,
+                    "city_name": city["name"],
+                    "station_name": f"{city['name']} Weather Station",
+                    "coordinates": {
+                        "lat": city["lat"],
+                        "lng": city["lng"]
+                    },
+                    "temperature": None,
+                    "humidity": None,
+                    "rainfall": None,
+                    "wind_speed": None,
+                    "wind_direction": None,
+                    "pressure": None,
+                    "weather_condition": "Error loading data",
+                    "filipino_condition": "Error loading data",
+                    "recorded_at": None,
+                    "data_source": "error",
+                    "status": "error"
+                })
+        
+        response = {
+            "cities": cities_weather,
+            "total_cities": len(frontend_cities),
+            "cities_with_data": successful_cities,
+            "success_rate": (successful_cities / len(frontend_cities)) * 100 if frontend_cities else 0,
+            "data_source": "postgresql_database",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        print(f"✅ Frontend cities weather data: {successful_cities}/{len(frontend_cities)} cities with data")
+        return jsonify(response)
+        
+    except Exception as e:
+        print(f"❌ Error in get_frontend_cities_weather: {e}")
         print(f"📋 Traceback: {traceback.format_exc()}")
         return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
     
