@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 
 const MapComponent = () => {
   const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
 
   useEffect(() => {
     const loadGoogleMaps = () => {
@@ -21,14 +22,81 @@ const MapComponent = () => {
       
       script.onload = () => {
         if (mapRef.current && window.google) {
-          const map = new window.google.maps.Map(mapRef.current, {
-            center: { lat: 14.5995, lng: 120.9842 }, // Manila, Philippines
-            zoom: 10,
+          // Define Iloilo City boundaries
+          const iloiloBounds = new window.google.maps.LatLngBounds(
+            new window.google.maps.LatLng(10.65, 122.50), // Southwest corner
+            new window.google.maps.LatLng(10.79, 122.62)  // Northeast corner
+          );
+
+          // Initialize map focused on Iloilo City
+          mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+            center: { lat: 10.7202, lng: 122.5621 }, // Iloilo City center
+            zoom: 12,
+            minZoom: 10,
+            maxZoom: 16,
+            restriction: {
+              latLngBounds: iloiloBounds,
+              strictBounds: true
+            },
             mapTypeId: window.google.maps.MapTypeId.ROADMAP,
             mapTypeControl: true,
             streetViewControl: true,
             fullscreenControl: true,
+            styles: [
+              {
+                featureType: "poi",
+                elementType: "all",
+                stylers: [{ visibility: "off" }]
+              },
+              {
+                featureType: "poi.business",
+                elementType: "all", 
+                stylers: [{ visibility: "off" }]
+              },
+              {
+                featureType: "poi.attraction",
+                elementType: "all",
+                stylers: [{ visibility: "off" }]
+              },
+              {
+                featureType: "poi.government",
+                elementType: "all",
+                stylers: [{ visibility: "off" }]
+              },
+              {
+                featureType: "poi.medical",
+                elementType: "all",
+                stylers: [{ visibility: "off" }]
+              },
+              {
+                featureType: "poi.park",
+                elementType: "all",
+                stylers: [{ visibility: "off" }]
+              },
+              {
+                featureType: "poi.place_of_worship",
+                elementType: "all",
+                stylers: [{ visibility: "off" }]
+              },
+              {
+                featureType: "poi.school",
+                elementType: "all",
+                stylers: [{ visibility: "off" }]
+              },
+              {
+                featureType: "poi.sports_complex",
+                elementType: "all",
+                stylers: [{ visibility: "off" }]
+              },
+              {
+                featureType: "transit",
+                elementType: "all",
+                stylers: [{ visibility: "off" }]
+              }
+            ]
           });
+
+
         }
       };
 
