@@ -30,7 +30,6 @@ export default function DashboardPage() {
             <EmergencyAlerts />
           </div>
         </div>
-            <AIForecastingPanel />
 
 
         <VoiceAssistant open={assistantOpen} onOpenChange={setAssistantOpen} />
