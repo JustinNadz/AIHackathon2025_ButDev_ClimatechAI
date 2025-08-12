@@ -1,0 +1,54 @@
+.ai-summary-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 20px;
+}
+
+.ai-header {
+  border-bottom: 1px solid #dee2e6;
+  padding-bottom: 15px;
+  margin-bottom: 20px;
+}
+
+.ai-header h2 {
+  margin: 0 0 5px 0;
+  color: #333;
+  font-size: 1.5rem;
+}
+
+.ai-header p {
+  margin: 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.ai-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.placeholder-content {
+  text-align: center;
+  color: #666;
+  max-width: 300px;
+}
+
+.placeholder-icon {
+  font-size: 3rem;
+  margin-bottom: 15px;
+}
+
+.placeholder-content h3 {
+  margin: 0 0 15px 0;
+  color: #333;
+  font-size: 1.2rem;
+}
+
+.placeholder-content p {
+  margin: 0 0 10px 0;
+  line-height: 1.5;
+  font-size: 0.9rem;
+}
