@@ -119,13 +119,13 @@ def verify_setup():
                 SELECT table_name FROM information_schema.tables 
                 WHERE table_schema = 'public' AND table_name IN (
                     'flood_data', 'landslide_data', 'earthquake_data', 
-                    'weather_data', 'chat_history'
+                    'weather_data', 'chat_history', 'emergency_protocols'
                 )
                 ORDER BY table_name;
             """))
             tables = [row[0] for row in result.fetchall()]
             
-            expected_tables = ['flood_data', 'landslide_data', 'earthquake_data', 'weather_data', 'chat_history']
+            expected_tables = ['flood_data', 'landslide_data', 'earthquake_data', 'weather_data', 'chat_history', 'emergency_protocols']
             missing_tables = [table for table in expected_tables if table not in tables]
             
             if missing_tables:

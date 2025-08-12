@@ -598,6 +598,8 @@ export function InteractiveMap() {
   const [landslideZones, setLandslideZones] = useState<google.maps.Polygon[]>([]);
   const [fireZones, setFireZones] = useState<google.maps.Polygon[]>([]);
   const [seismicMarkers, setSeismicMarkers] = useState<google.maps.Marker[]>([]);
+  const [queryRadius, setQueryRadius] = useState<number>(50); // Default 50km radius for nearby queries
+  const [currentMapCenter, setCurrentMapCenter] = useState<{lat: number, lng: number}>({lat: 10.7302, lng: 122.5591});
 
   const getPolygonCentroid = (coords: google.maps.LatLngLiteral[]): google.maps.LatLngLiteral => {
     const { length } = coords;
@@ -858,6 +860,21 @@ export function InteractiveMap() {
   
   const handleMapLoad = useCallback((mapInstance: google.maps.Map) => {
      setMap(mapInstance)
+     
+     // Set initial map center
+     const center = mapInstance.getCenter()
+     if (center) {
+       setCurrentMapCenter({ lat: center.lat(), lng: center.lng() })
+     }
+     
+     // Listen for map center changes
+     mapInstance.addListener('center_changed', () => {
+       const newCenter = mapInstance.getCenter()
+       if (newCenter) {
+         setCurrentMapCenter({ lat: newCenter.lat(), lng: newCenter.lng() })
+       }
+     })
+     
      // Markers removed - only using polygons for flood zones
    }, [])
 
@@ -1019,11 +1036,30 @@ export function InteractiveMap() {
     }
   }
 
-  const fetchLandslideData = async () => {
+  const fetchLandslideData = async (lat?: number, lng?: number, radiusKm: number = 50) => {
     try {
       setIsLoadingLandslideData(true)
       console.log('🏔️ Fetching landslide data from backend...')
-      const response = await fetch(`${BACKEND_BASE_URL}/api/landslide-data`)
+      
+      // Build URL with parameters
+      let url = `${BACKEND_BASE_URL}/api/landslide-data`
+      const params = new URLSearchParams()
+      
+      // Add nearby parameters if provided
+      if (lat !== undefined && lng !== undefined) {
+        params.append('lat', lat.toString())
+        params.append('lng', lng.toString())
+        params.append('radius_km', radiusKm.toString())
+        console.log(`📍 Fetching landslide data near (${lat}, ${lng}) within ${radiusKm}km radius`)
+      } else {
+        console.log('📊 Fetching all landslide data')
+      }
+      
+      if (params.toString()) {
+        url += '?' + params.toString()
+      }
+      
+      const response = await fetch(url)
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
@@ -1652,7 +1688,7 @@ export function InteractiveMap() {
           infoContainer.appendChild(closeBtn);
           infoContainer.appendChild(body);
           const info = new google.maps.InfoWindow({ content: infoContainer });
-          closeBtn.addEventListener('click', (ev) => {ev.preventDefault();ev.stopPropagation(); info.close(); if(currentInfoWindowRef.current===info) currentInfoWindowRef.current=null;});
+          closeBtn.addEventListener('click', (ev)=>{ev.preventDefault();ev.stopPropagation(); info.close(); if(currentInfoWindowRef.current===info) currentInfoWindowRef.current=null;});
           poly.addListener('click', (e: google.maps.MapMouseEvent) => {
             if (currentInfoWindowRef.current) currentInfoWindowRef.current.close();
             if (e.latLng) info.setPosition(e.latLng);
@@ -1804,7 +1840,7 @@ export function InteractiveMap() {
     }
     
     if (selectedLayer === 'landslide' || selectedLayer === 'all') {
-      fetchLandslideData()
+      fetchLandslideData(currentMapCenter.lat, currentMapCenter.lng, queryRadius)
     }
     
     if (selectedLayer === 'seismic' || selectedLayer === 'all') {
@@ -1812,7 +1848,7 @@ export function InteractiveMap() {
     }
     
     if (selectedLayer === 'weather' || selectedLayer === 'all') {
-      fetchWeatherData(selectedLocation.lat, selectedLocation.lng)
+      fetchWeatherData(currentMapCenter.lat, currentMapCenter.lng)
     }
   }, [map, selectedLayer])
 
@@ -1921,6 +1957,37 @@ export function InteractiveMap() {
             </Button>
           </div>
           
+          {/* My Location Button */}
+          <div className="absolute top-4 left-48 z-10">
+            <Button
+              onClick={() => {
+                if (navigator.geolocation) {
+                  navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                      const { latitude, longitude } = position.coords
+                      setCurrentMapCenter({ lat: latitude, lng: longitude })
+                      if (map) {
+                        map.setCenter({ lat: latitude, lng: longitude })
+                        map.setZoom(12)
+                      }
+                    },
+                    (error) => {
+                      console.error('Error getting current location:', error)
+                      alert('Unable to get current location. Please check your browser permissions.')
+                    }
+                  )
+                } else {
+                  alert('Geolocation is not supported by this browser.')
+                }
+              }}
+              className="bg-green-600 hover:bg-green-700 text-white border border-green-500 shadow-lg backdrop-blur-sm"
+              size="sm"
+            >
+              <MapPin className="w-4 h-4 mr-2" />
+              My Location
+            </Button>
+          </div>
+          
           {/* Fullscreen Layer Toolbar */}
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 w-full max-w-4xl px-4">
             <div className="flex flex-col gap-3">
@@ -1940,6 +2007,27 @@ export function InteractiveMap() {
                 ))}
               </div>
               
+              {/* Radius Control */}
+              <div className="flex items-center justify-center gap-3 p-2 bg-white/80 rounded-lg shadow-md backdrop-blur-sm">
+                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                  Query Radius:
+                </label>
+                <select
+                  value={queryRadius}
+                  onChange={(e) => setQueryRadius(Number(e.target.value))}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value={10}>10 km</option>
+                  <option value={25}>25 km</option>
+                  <option value={50}>50 km</option>
+                  <option value={100}>100 km</option>
+                  <option value={200}>200 km</option>
+                </select>
+                <span className="text-xs text-gray-500">
+                  (for nearby queries)
+                </span>
+              </div>
+              
               {/* Load Data and Clear Map Buttons */}
               <div className="flex justify-center gap-3">
                 <Button
@@ -1948,13 +2036,13 @@ export function InteractiveMap() {
                       fetchFloodData()
                     }
                     if (selectedLayer === 'landslide' || selectedLayer === 'all') {
-                      fetchLandslideData()
+                      fetchLandslideData(currentMapCenter.lat, currentMapCenter.lng, queryRadius)
                     }
                     if (selectedLayer === 'seismic' || selectedLayer === 'all') {
                       fetchSeismicData()
                     }
                     if (selectedLayer === 'weather' || selectedLayer === 'all') {
-                      fetchWeatherData(selectedLocation.lat, selectedLocation.lng)
+                      fetchWeatherData(currentMapCenter.lat, currentMapCenter.lng)
                     }
                   }}
                   disabled={isLoadingFloodData || isLoadingLandslideData || isLoadingSeismicData || isLoadingWeather}
@@ -2035,9 +2123,12 @@ export function InteractiveMap() {
               <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-lg">
                 <div className="flex items-center space-x-2">
                   <MapPin className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm font-medium">Iloilo City Region</span>
+                  <span className="text-sm font-medium">Map Center</span>
                 </div>
-                <p className="text-xs text-gray-600 mt-1">Real-time monitoring active</p>
+                <p className="text-xs text-gray-600 mt-1">
+                  {currentMapCenter.lat.toFixed(4)}, {currentMapCenter.lng.toFixed(4)}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Real-time monitoring active</p>
               </div>
             )}
           </div>
@@ -2148,13 +2239,13 @@ export function InteractiveMap() {
                     fetchFloodData()
                   }
                   if (selectedLayer === 'landslide' || selectedLayer === 'all') {
-                    fetchLandslideData()
+                    fetchLandslideData(currentMapCenter.lat, currentMapCenter.lng, queryRadius)
                   }
                   if (selectedLayer === 'seismic' || selectedLayer === 'all') {
                     fetchSeismicData()
                   }
                   if (selectedLayer === 'weather' || selectedLayer === 'all') {
-                    fetchWeatherData(selectedLocation.lat, selectedLocation.lng)
+                    fetchWeatherData(currentMapCenter.lat, currentMapCenter.lng)
                   }
                 }}
                 disabled={isLoadingFloodData || isLoadingLandslideData || isLoadingSeismicData || isLoadingWeather}
@@ -2237,16 +2328,63 @@ export function InteractiveMap() {
               <div className="absolute top-0.5 right-0.5 bg-white/90 backdrop-blur-sm p-3 rounded-lg">
                 <div className="flex items-center space-x-2">
                   <MapPin className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm font-medium">Iloilo City Region</span>
+                  <span className="text-sm font-medium">Map Center</span>
                 </div>
-                <p className="text-xs text-gray-600 mt-1">Real-time monitoring active</p>
+                <p className="text-xs text-gray-600 mt-1">
+                  {currentMapCenter.lat.toFixed(4)}, {currentMapCenter.lng.toFixed(4)}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Real-time monitoring active</p>
               </div>
             )}
           </div>
 
           {/* Map Controls */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-2">
-            <div className="flex ml-auto">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                Query Radius:
+              </label>
+              <select
+                value={queryRadius}
+                onChange={(e) => setQueryRadius(Number(e.target.value))}
+                className="px-2 py-1 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value={10}>10 km</option>
+                <option value={25}>25 km</option>
+                <option value={50}>50 km</option>
+                <option value={100}>100 km</option>
+                <option value={200}>200 km</option>
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-green-200 text-green-700 bg-transparent"
+                onClick={() => {
+                  if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                      (position) => {
+                        const { latitude, longitude } = position.coords
+                        setCurrentMapCenter({ lat: latitude, lng: longitude })
+                        if (map) {
+                          map.setCenter({ lat: latitude, lng: longitude })
+                          map.setZoom(12)
+                        }
+                      },
+                      (error) => {
+                        console.error('Error getting current location:', error)
+                        alert('Unable to get current location. Please check your browser permissions.')
+                      }
+                    )
+                  } else {
+                    alert('Geolocation is not supported by this browser.')
+                  }
+                }}
+              >
+                <MapPin className="w-4 h-4 mr-1" />
+                My Location
+              </Button>
               <Button 
                 variant="outline" 
                 size="sm" 
