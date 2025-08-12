@@ -106,3 +106,31 @@ class WeatherIngestor:
         print(f"  ❌ Failed: {failed_ingestions}")
         print(f"  📍 Total: {len(locations)}")
 
+    def ingest_weather_for_major_cities(self):
+        """Ingest weather data for major Philippine cities"""
+        major_cities = [
+            (14.5995, 120.9842, "Manila"),
+            (10.3157, 123.8854, "Cebu City"),
+            (7.1907, 125.4553, "Davao City"),
+            (16.4023, 120.5960, "Baguio City"),
+            (15.4700, 120.9600, "Tarlac City"),
+            (14.8448, 120.8105, "Angeles City"),
+            (15.1448, 120.5977, "San Fernando"),
+            (14.4791, 121.0433, "Antipolo"),
+            (14.6091, 121.0223, "Quezon City"),
+            (14.5547, 121.0244, "Makati"),
+            (14.4500, 120.9500, "Cavite City"),
+            (14.1016, 122.9550, "Daet"),
+            (13.9318, 121.6157, "Lucena"),
+            (13.1587, 123.7304, "Legazpi"),
+            (12.8797, 121.7740, "Puerto Princesa"),
+            (11.2404, 125.0058, "Tacloban"),
+            (10.7203, 122.5621, "Iloilo City"),
+            (9.6498, 123.8505, "Tagbilaran"),
+            (8.5379, 123.3754, "Ozamiz"),
+            (7.0734, 125.6140, "General Santos"),
+        ]
+        
+        print("🏙️ Major Cities Weather Ingestion")
+        print("=" * 40)
+        self.ingest_weather_for_multiple_locations(major_cities)
