@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
-import { MapPin, Layers, Droplets, Mountain, Flame, Cloud, ArrowLeft, ChevronDown, Info } from "lucide-react"
+import { MapPin, Layers, Droplets, Mountain, Flame, Cloud, ArrowLeft, ChevronDown, Info, Zap } from "lucide-react"
 import dynamic from "next/dynamic"
 
 // Props for the AlphaEarth overlay component
@@ -209,15 +209,16 @@ function MapComponent({ center, zoom, onMapLoad }: MapProps) {
 					gestureHandling: "cooperative",
 					tilt: 67.5,
 					heading: 0,
-					restriction: {
-						latLngBounds: {
-							north: 11.0,
-							south: 10.5,
-							west: 122.0,
-							east: 123.0
-						},
-						strictBounds: false
-					},
+                    restriction: {
+                        // Butuan approx bounds
+                        latLngBounds: {
+                            north: 9.10,
+                            south: 8.80,
+                            west: 125.40,
+                            east: 125.70
+                        },
+                        strictBounds: false
+                    },
 					keyboardShortcuts: false,
 					clickableIcons: true,
 					mapTypeId: "hybrid",
@@ -614,9 +615,11 @@ const render = (status: Status): React.ReactElement => {
 };
 
 export function InteractiveMap() {
-	const [selectedLocation, setSelectedLocation] = useState<{ lat: number, lng: number }>({ lat: 10.7302, lng: 122.5591 });
+    const [selectedLocation, setSelectedLocation] = useState<{ lat: number, lng: number }>({ lat: 8.9492, lng: 125.5436 });
+    const [currentMapCenter, setCurrentMapCenter] = useState<{ lat: number, lng: number }>({ lat: 8.9492, lng: 125.5436 });
 	const [selectedLayer, setSelectedLayer] = useState<string>("all");
-	const [apiKeyStatus, setApiKeyStatus] = useState<'checking' | 'valid' | 'invalid' | 'billing-error'>('checking');
+    const [queryRadius, setQueryRadius] = useState<number>(50);
+    const [apiKeyStatus, setApiKeyStatus] = useState<'checking' | 'valid' | 'invalid' | 'billing-error'>('checking');
 	const [googleMapsError, setGoogleMapsError] = useState<string | null>(null);
 	const [map, setMap] = useState<google.maps.Map | null>(null);
 	const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
@@ -641,10 +644,14 @@ export function InteractiveMap() {
 	const [floodCenterMarkers, setFloodCenterMarkers] = useState<google.maps.Marker[]>([]);
 	const [animationFrame, setAnimationFrame] = useState(0);
 	const [landslideMarkers, setLandslideMarkers] = useState<google.maps.Marker[]>([]);
-	const [fireMarkers, setFireMarkers] = useState<google.maps.Marker[]>([]);
+    const [fireMarkers, setFireMarkers] = useState<google.maps.Marker[]>([]);
+    const [seismicMarkers, setSeismicMarkers] = useState<google.maps.Marker[]>([]);
 	const [landslideZones, setLandslideZones] = useState<google.maps.Polygon[]>([]);
 	const [fireZones, setFireZones] = useState<google.maps.Polygon[]>([]);
 	const [energyZones, setEnergyZones] = useState<google.maps.Polygon[]>([]);
+	// Static barangay overlays
+	const [barangayPolygons, setBarangayPolygons] = useState<google.maps.Polygon[]>([]);
+	const [barangayMarkers, setBarangayMarkers] = useState<google.maps.Marker[]>([]);
 
 	// Backend data states
 	const [backendFloodData, setBackendFloodData] = useState<BackendFloodData[]>([]);
@@ -665,6 +672,118 @@ export function InteractiveMap() {
 		url: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==',
 		scaledSize: new google.maps.Size(1, 1),
 	} as google.maps.Icon);
+
+	// Provided barangay polygons (approximate rectangles or polygons)
+	const barangays: Array<{ name: string; coords: google.maps.LatLngLiteral[] }> = [
+		{
+			name: 'Baobaoan',
+			coords: [
+				{ lat: 9.051295146577583, lng: 125.56477071956743 },
+				{ lat: 9.003612744526409, lng: 125.56452545248364 },
+				{ lat: 9.005561298011134, lng: 125.59547799185972 },
+				{ lat: 9.05093956660449, lng: 125.58109879355074 },
+			],
+		},
+		{
+			name: 'Mandamo',
+			coords: [
+				{ lat: 8.7630, lng: 125.5989 },
+				{ lat: 8.7600, lng: 125.6050 },
+				{ lat: 8.7580, lng: 125.6040 },
+				{ lat: 8.7605, lng: 125.6000 },
+			],
+		},
+		{
+			name: 'San Vicente',
+			coords: [
+				{ lat: 8.9070, lng: 125.5520 },
+				{ lat: 8.9070, lng: 125.5575 },
+				{ lat: 8.9040, lng: 125.5575 },
+				{ lat: 8.9040, lng: 125.5520 },
+			],
+		},
+		{
+			name: 'Baan Riverside Poblacion',
+			coords: [
+				{ lat: 8.9540, lng: 125.5460 },
+				{ lat: 8.9540, lng: 125.5510 },
+				{ lat: 8.9500, lng: 125.5510 },
+				{ lat: 8.9500, lng: 125.5460 },
+			],
+		},
+		{
+			name: 'Golden Ribbon Poblacion',
+			coords: [
+				{ lat: 8.9410, lng: 125.5403 },
+				{ lat: 8.9410, lng: 125.5433 },
+				{ lat: 8.9380, lng: 125.5433 },
+				{ lat: 8.9380, lng: 125.5403 },
+			],
+		},
+		{
+			name: 'Pangabugan',
+			coords: [
+				{ lat: 8.9280, lng: 125.5501 },
+				{ lat: 8.9280, lng: 125.5551 },
+				{ lat: 8.9230, lng: 125.5551 },
+				{ lat: 8.9230, lng: 125.5501 },
+			],
+		},
+		{
+			name: 'Mahogany Poblacion',
+			coords: [
+				{ lat: 8.9775, lng: 125.5610 },
+				{ lat: 8.9775, lng: 125.5570 },
+				{ lat: 8.9735, lng: 125.5570 },
+				{ lat: 8.9735, lng: 125.5610 },
+			],
+		},
+		{
+			name: 'Buhangin Poblacion',
+			coords: [
+				{ lat: 8.9480, lng: 125.5520 },
+				{ lat: 8.9480, lng: 125.5460 },
+				{ lat: 8.9420, lng: 125.5460 },
+				{ lat: 8.9420, lng: 125.5520 },
+			],
+		},
+		{
+			name: 'Agusan Pequeño',
+			coords: [
+				{ lat: 8.9768, lng: 125.5282 },
+				{ lat: 8.9768, lng: 125.5222 },
+				{ lat: 8.9708, lng: 125.5222 },
+				{ lat: 8.9708, lng: 125.5282 },
+			],
+		},
+		{
+			name: 'Aupagan',
+			coords: [
+				{ lat: 8.8926, lng: 125.5570 },
+				{ lat: 8.8926, lng: 125.5530 },
+				{ lat: 8.8886, lng: 125.5530 },
+				{ lat: 8.8886, lng: 125.5570 },
+			],
+		},
+		{
+			name: 'Obrero Poblacion',
+			coords: [
+				{ lat: 8.9595, lng: 125.5273 },
+				{ lat: 8.9595, lng: 125.5233 },
+				{ lat: 8.9555, lng: 125.5233 },
+				{ lat: 8.9555, lng: 125.5273 },
+			],
+		},
+		{
+			name: 'Bading Poblacion',
+			coords: [
+				{ lat: 8.9595, lng: 125.5273 },
+				{ lat: 8.9595, lng: 125.5233 },
+				{ lat: 8.9555, lng: 125.5233 },
+				{ lat: 8.9555, lng: 125.5273 },
+			],
+		},
+	];
 
 	// Adaptive height based on viewport
 	const calculateHeight = () => {
@@ -720,45 +839,45 @@ export function InteractiveMap() {
 	];
 
 	// Functions to fetch backend data
-	const fetchBackendData = async () => {
-		setIsLoadingBackendData(true);
-		const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+    const fetchBackendData = async () => {
+        setIsLoadingBackendData(true);
+        const backendUrl = BACKEND_BASE_URL;
 
-		try {
-			// Fetch all data types in parallel
-			const [floodResponse, landslideResponse, seismicResponse, weatherResponse] = await Promise.all([
-				fetch(`${backendUrl}/api/flood-data`),
-				fetch(`${backendUrl}/api/landslide-data`),
-				fetch(`${backendUrl}/api/seismic-data`),
-				fetch(`${backendUrl}/api/weather-data`)
-			]);
+        try {
+            // Attempt a light-weight ping if available, ignore errors
+            try { await fetch(`${backendUrl}/health`, { method: 'GET' }); } catch {}
 
-			if (floodResponse.ok) {
-				const floodData = await floodResponse.json();
-				setBackendFloodData(floodData.features || floodData || []);
-			}
+            const results = await Promise.allSettled([
+                fetch(`${backendUrl}/api/flood-data`),
+                fetch(`${backendUrl}/api/landslide-data`),
+                fetch(`${backendUrl}/api/seismic-data`),
+                fetch(`${backendUrl}/api/weather-data`)
+            ]);
 
-			if (landslideResponse.ok) {
-				const landslideData = await landslideResponse.json();
-				setBackendLandslideData(landslideData.features || landslideData || []);
-			}
+            const [floodRes, landslideRes, seismicRes, weatherRes] = results;
 
-			if (seismicResponse.ok) {
-				const seismicData = await seismicResponse.json();
-				setBackendSeismicData(seismicData.features || seismicData || []);
-			}
-
-			if (weatherResponse.ok) {
-				const weatherData = await weatherResponse.json();
-				setBackendWeatherData(weatherData.features || weatherData || []);
-			}
-
-		} catch (error) {
-			console.error('Error fetching backend data:', error);
-		} finally {
-			setIsLoadingBackendData(false);
-		}
-	};
+            if (floodRes.status === 'fulfilled' && floodRes.value.ok) {
+                const floodData = await floodRes.value.json();
+                setBackendFloodData(floodData.features || floodData || []);
+            }
+            if (landslideRes.status === 'fulfilled' && landslideRes.value.ok) {
+                const landslideData = await landslideRes.value.json();
+                setBackendLandslideData(landslideData.features || landslideData || []);
+            }
+            if (seismicRes.status === 'fulfilled' && seismicRes.value.ok) {
+                const seismicData = await seismicRes.value.json();
+                setBackendSeismicData(seismicData.features || seismicData || []);
+            }
+            if (weatherRes.status === 'fulfilled' && weatherRes.value.ok) {
+                const weatherData = await weatherRes.value.json();
+                setBackendWeatherData(weatherData.features || weatherData || []);
+            }
+        } catch (error) {
+            console.warn('Backend data fetch skipped or failed:', error);
+        } finally {
+            setIsLoadingBackendData(false);
+        }
+    };
 
 	const getRiskColor = (riskLevel: number) => {
 		if (riskLevel >= 7) return '#dc2626'; // High risk - red
@@ -1159,7 +1278,54 @@ export function InteractiveMap() {
 			}
 		})
 
-		// Markers removed - only using polygons for flood zones
+		// Draw static barangay overlays
+		try {
+			// Clear existing barangays if any
+			barangayPolygons.forEach(p => p.setMap(null));
+			barangayMarkers.forEach(m => m.setMap(null));
+			const newPolys: google.maps.Polygon[] = [];
+			const newMarks: google.maps.Marker[] = [];
+			const color = '#2563eb'; // blue outline
+			const fill = '#60a5fa'; // light blue
+			barangays.forEach(b => {
+				if (!b.coords || b.coords.length < 3) return;
+				const poly = new google.maps.Polygon({
+					paths: b.coords,
+					strokeColor: color,
+					strokeOpacity: 0.9,
+					strokeWeight: 2,
+					fillColor: fill,
+					fillOpacity: 0.18,
+					map: mapInstance,
+					zIndex: 60,
+				});
+				newPolys.push(poly);
+				// label marker at centroid
+				const centroid = getPolygonCentroid(b.coords);
+				const label = new google.maps.Marker({
+					position: centroid,
+					map: mapInstance,
+					icon: getTransparentIcon(),
+					label: { text: b.name, color: '#1f2937', fontSize: '12px' as any, fontWeight: '600' as any },
+					zIndex: 70,
+				});
+				newMarks.push(label);
+				// info window on click
+				const info = new google.maps.InfoWindow({
+					content: `<div style="font:13px system-ui"><strong>Barangay:</strong> ${b.name}</div>`
+				});
+				poly.addListener('click', (e: google.maps.MapMouseEvent) => {
+					currentInfoWindowRef.current?.close();
+					if (e.latLng) info.setPosition(e.latLng);
+					info.open(mapInstance);
+					currentInfoWindowRef.current = info;
+				});
+			});
+			setBarangayPolygons(newPolys);
+			setBarangayMarkers(newMarks);
+		} catch {}
+
+		// Markers removed - only using polygons for flood zones and barangays
 	}, [])
 
 	const mapLayers = [
@@ -1172,23 +1338,31 @@ export function InteractiveMap() {
 	]
 
 	// Backend API base URL
-	const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_BASE_URL || 'http://localhost:5000'
+    const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_BASE_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
 	// Data fetching functions
 	const fetchFloodData = async () => {
 		try {
 			setIsLoadingFloodData(true)
 			console.log('🌊 Fetching flood data from backend...')
-			const response = await fetch(`${BACKEND_BASE_URL}/api/flood-data`)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+            let data: any | null = null;
+            try {
+                const response = await fetch(`${BACKEND_BASE_URL}/api/flood-data`, { signal: controller.signal });
+                if (response.ok) {
+                    data = await response.json();
+                    console.log(`✅ Fetched ${data.features?.length || 0} flood features`)
+                } else {
+                    console.warn(`Flood API unavailable (${response.status}). Falling back to sample data.`);
+                }
+            } catch (e) {
+                console.warn('Flood API request failed or timed out. Using sample data.');
+            } finally {
+                clearTimeout(timeoutId);
+            }
 
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`)
-			}
-
-			const data = await response.json()
-			console.log(`✅ Fetched ${data.features?.length || 0} flood features`)
-
-			if (data.features && data.features.length > 0) {
+            if (data && data.features && data.features.length > 0) {
 				// Clear existing flood polygons
 				floodPolygons.forEach(polygon => polygon.setMap(null))
 
@@ -1210,7 +1384,9 @@ export function InteractiveMap() {
 								lat: Number(coord[1]),
 								lng: Number(coord[0])
 							}))
-						}
+            } else {
+                // No backend data; rely on sample predictions already rendered on layer change
+            }
 					}
 
 					// Skip if no valid coordinates
@@ -1736,6 +1912,23 @@ export function InteractiveMap() {
 	// Risk overlays rendering based on selected layer (create/destroy overlays only on layer change)
 	useEffect(() => {
 		if (map) {
+			// Ensure barangays redraw on layer change to keep them visible
+			barangayPolygons.forEach(p => p.setMap(null));
+			barangayMarkers.forEach(m => m.setMap(null));
+			const redrawPolys: google.maps.Polygon[] = [];
+			const redrawMarks: google.maps.Marker[] = [];
+			const color = '#2563eb';
+			const fill = '#60a5fa';
+			barangays.forEach(b => {
+				if (!b.coords || b.coords.length < 3) return;
+				const poly = new google.maps.Polygon({ paths: b.coords, strokeColor: color, strokeOpacity: 0.9, strokeWeight: 2, fillColor: fill, fillOpacity: 0.18, map, zIndex: 60 });
+				redrawPolys.push(poly);
+				const centroid = getPolygonCentroid(b.coords);
+				const label = new google.maps.Marker({ position: centroid, map, icon: getTransparentIcon(), label: { text: b.name, color: '#1f2937', fontSize: '12px' as any, fontWeight: '600' as any }, zIndex: 70 });
+				redrawMarks.push(label);
+			});
+			setBarangayPolygons(redrawPolys);
+			setBarangayMarkers(redrawMarks);
 			// Clear existing overlays first
 			floodPolygons.forEach(polygon => polygon.setMap(null));
 			floodCenterMarkers.forEach(m => m.setMap(null));
