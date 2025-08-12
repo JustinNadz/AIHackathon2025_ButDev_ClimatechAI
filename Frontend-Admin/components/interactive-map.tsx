@@ -576,6 +576,7 @@ export function InteractiveMap() {
   const [isLoadingWeather, setIsLoadingWeather] = useState(false);
   const [isLoadingFloodData, setIsLoadingFloodData] = useState(false);
   const [isLoadingLandslideData, setIsLoadingLandslideData] = useState(false);
+  const [isLoadingSeismicData, setIsLoadingSeismicData] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
@@ -596,6 +597,7 @@ export function InteractiveMap() {
   const [fireMarkers, setFireMarkers] = useState<google.maps.Marker[]>([]);
   const [landslideZones, setLandslideZones] = useState<google.maps.Polygon[]>([]);
   const [fireZones, setFireZones] = useState<google.maps.Polygon[]>([]);
+  const [seismicMarkers, setSeismicMarkers] = useState<google.maps.Marker[]>([]);
 
   const getPolygonCentroid = (coords: google.maps.LatLngLiteral[]): google.maps.LatLngLiteral => {
     const { length } = coords;
@@ -864,6 +866,7 @@ export function InteractiveMap() {
     { id: "weather", label: "Weather Data", icon: Cloud },
     { id: "flood", label: "Flood Risk", icon: Droplets },
     { id: "landslide", label: "Landslide Risk", icon: Mountain },
+    { id: "seismic", label: "Seismic Activity", icon: MapPin },
     { id: "fire", label: "Fire Risk", icon: Flame },
   ]
 
@@ -1127,6 +1130,118 @@ export function InteractiveMap() {
     }
   }
 
+  const fetchSeismicData = async () => {
+    try {
+      setIsLoadingSeismicData(true)
+      console.log('🌋 Fetching seismic data from backend...')
+      const response = await fetch(`${BACKEND_BASE_URL}/api/seismic-data?hours=24`)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      console.log(`✅ Fetched ${data.features?.length || 0} seismic events`)
+      
+      if (data.features && data.features.length > 0) {
+        // Clear existing seismic markers
+        seismicMarkers.forEach(marker => marker.setMap(null))
+        
+        const newMarkers: google.maps.Marker[] = []
+        
+        data.features.forEach((feature: any) => {
+          if (feature.geometry.type === 'Point' && feature.geometry.coordinates) {
+            const [lng, lat] = feature.geometry.coordinates
+            const magnitude = feature.properties.magnitude
+            const depth = feature.properties.depth
+            const locationName = feature.properties.location_name
+            const eventTime = feature.properties.event_time
+            
+            // Determine marker color based on magnitude
+            let markerColor = '#00FF00' // Green for low magnitude
+            let markerSize = 8
+            let markerOpacity = 0.6
+            
+            if (magnitude >= 6.0) {
+              markerColor = '#FF0000' // Red for major earthquakes
+              markerSize = 16
+              markerOpacity = 0.9
+            } else if (magnitude >= 4.5) {
+              markerColor = '#FFA500' // Orange for moderate earthquakes
+              markerSize = 12
+              markerOpacity = 0.8
+            } else if (magnitude >= 3.0) {
+              markerColor = '#FFFF00' // Yellow for minor earthquakes
+              markerSize = 10
+              markerOpacity = 0.7
+            }
+            
+            // Create custom marker icon
+            const markerIcon = {
+              path: google.maps.SymbolPath.CIRCLE,
+              fillColor: markerColor,
+              fillOpacity: markerOpacity,
+              strokeColor: '#000000',
+              strokeWeight: 1,
+              scale: markerSize
+            }
+            
+            const marker = new google.maps.Marker({
+              position: { lat: Number(lat), lng: Number(lng) },
+              map: map || undefined,
+              icon: markerIcon,
+              title: `Magnitude ${magnitude} earthquake`,
+              zIndex: 150
+            })
+            
+            // Add click listener for info window
+            marker.addListener('click', () => {
+              if (currentInfoWindowRef.current) {
+                currentInfoWindowRef.current.close()
+              }
+              
+              const infoWindow = new google.maps.InfoWindow({
+                content: `
+                  <div style="padding: 10px; max-width: 250px;">
+                    <h3 style="margin: 0 0 8px 0; color: #1f2937;">🌋 Earthquake Event</h3>
+                    <p style="margin: 4px 0; font-size: 14px;">
+                      <strong>Magnitude:</strong> ${magnitude.toFixed(1)}
+                    </p>
+                    <p style="margin: 4px 0; font-size: 14px;">
+                      <strong>Depth:</strong> ${depth ? `${depth.toFixed(1)} km` : 'Unknown'}
+                    </p>
+                    <p style="margin: 4px 0; font-size: 14px;">
+                      <strong>Location:</strong> ${locationName || 'Unknown'}
+                    </p>
+                    <p style="margin: 4px 0; font-size: 12px; color: #6b7280;">
+                      <strong>Time:</strong> ${eventTime ? new Date(eventTime).toLocaleString() : 'Unknown'}
+                    </p>
+                    <p style="margin: 4px 0; font-size: 12px; color: #6b7280;">
+                      ID: ${feature.properties.id}
+                    </p>
+                  </div>
+                `,
+                position: { lat: Number(lat), lng: Number(lng) }
+              })
+              
+              infoWindow.open(map)
+              currentInfoWindowRef.current = infoWindow
+            })
+            
+            newMarkers.push(marker)
+          }
+        })
+        
+        setSeismicMarkers(newMarkers)
+        console.log(`✅ Added ${newMarkers.length} seismic markers to map`)
+      }
+    } catch (error) {
+      console.error('❌ Error fetching seismic data:', error)
+    } finally {
+      setIsLoadingSeismicData(false)
+    }
+  }
+
   const clearMapData = () => {
     console.log('🧹 Clearing all map data...')
     
@@ -1147,6 +1262,8 @@ export function InteractiveMap() {
     setLandslideMarkers([])
     fireMarkers.forEach(marker => marker.setMap(null))
     setFireMarkers([])
+    seismicMarkers.forEach(marker => marker.setMap(null))
+    setSeismicMarkers([])
     
     // Close any open info windows
     if (currentInfoWindowRef.current) {
@@ -1570,6 +1687,18 @@ export function InteractiveMap() {
           });
         }
 
+      } else if (selectedLayer === 'seismic') {
+        // Render seismic markers (data will be loaded via fetchSeismicData)
+        // The markers are already created in fetchSeismicData function
+        // Just add a centered icon for seismic layer
+        centerMarkerRef.current = new google.maps.Marker({
+          position: selectedLocation,
+          map,
+          icon: getTransparentIcon(),
+          label: { text: '🌋', color: '#dc2626', fontSize: '20px' as any },
+          zIndex: 250,
+        });
+
       } else if (selectedLayer === 'all') {
         // Show everything
         const newPolygons = sampleFloodPredictions.map(prediction => new google.maps.Polygon({
@@ -1676,6 +1805,10 @@ export function InteractiveMap() {
     
     if (selectedLayer === 'landslide' || selectedLayer === 'all') {
       fetchLandslideData()
+    }
+    
+    if (selectedLayer === 'seismic' || selectedLayer === 'all') {
+      fetchSeismicData()
     }
     
     if (selectedLayer === 'weather' || selectedLayer === 'all') {
@@ -1817,16 +1950,19 @@ export function InteractiveMap() {
                     if (selectedLayer === 'landslide' || selectedLayer === 'all') {
                       fetchLandslideData()
                     }
+                    if (selectedLayer === 'seismic' || selectedLayer === 'all') {
+                      fetchSeismicData()
+                    }
                     if (selectedLayer === 'weather' || selectedLayer === 'all') {
                       fetchWeatherData(selectedLocation.lat, selectedLocation.lng)
                     }
                   }}
-                  disabled={isLoadingFloodData || isLoadingLandslideData || isLoadingWeather}
+                  disabled={isLoadingFloodData || isLoadingLandslideData || isLoadingSeismicData || isLoadingWeather}
                   className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 shadow-lg disabled:opacity-50"
                   size="sm"
                 >
                   <Cloud className="w-4 h-4 mr-2" />
-                  {isLoadingFloodData || isLoadingLandslideData || isLoadingWeather 
+                  {isLoadingFloodData || isLoadingLandslideData || isLoadingSeismicData || isLoadingWeather 
                     ? 'Loading...' 
                     : `Load ${selectedLayer === 'all' ? 'All Data' : selectedLayer.charAt(0).toUpperCase() + selectedLayer.slice(1) + ' Data'}`
                   }
@@ -2014,16 +2150,19 @@ export function InteractiveMap() {
                   if (selectedLayer === 'landslide' || selectedLayer === 'all') {
                     fetchLandslideData()
                   }
+                  if (selectedLayer === 'seismic' || selectedLayer === 'all') {
+                    fetchSeismicData()
+                  }
                   if (selectedLayer === 'weather' || selectedLayer === 'all') {
                     fetchWeatherData(selectedLocation.lat, selectedLocation.lng)
                   }
                 }}
-                disabled={isLoadingFloodData || isLoadingLandslideData || isLoadingWeather}
+                disabled={isLoadingFloodData || isLoadingLandslideData || isLoadingSeismicData || isLoadingWeather}
                 className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 disabled:opacity-50"
                 size="sm"
               >
                 <Cloud className="w-4 h-4 mr-2" />
-                {isLoadingFloodData || isLoadingLandslideData || isLoadingWeather 
+                {isLoadingFloodData || isLoadingLandslideData || isLoadingSeismicData || isLoadingWeather 
                   ? 'Loading...' 
                   : `Load ${selectedLayer === 'all' ? 'All Data' : selectedLayer.charAt(0).toUpperCase() + selectedLayer.slice(1) + ' Data'}`
                 }
