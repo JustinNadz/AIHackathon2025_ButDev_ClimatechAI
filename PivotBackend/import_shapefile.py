@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Optimized shapefile import script for Pivot Backend
-Handles large multipolygons with progress reporting and performance optimizations
+Ultra-optimized shapefile import script for Pivot Backend
+Handles massive multipolygons with chunked processing and aggressive simplification
 """
 
 import geopandas as gpd
@@ -13,6 +13,7 @@ import sys
 from dotenv import load_dotenv
 import argparse
 import time
+import gc
 from tqdm import tqdm
 
 from database import engine, SessionLocal
@@ -20,23 +21,26 @@ from models import FloodData, LandslideData
 
 load_dotenv()
 
-def simplify_geometry(geometry, tolerance=0.0001):
+def aggressive_simplify_geometry(geometry, tolerance=0.001):
     """
-    Optimized geometry simplification with adaptive tolerance
+    Ultra-aggressive geometry simplification for massive multipolygons
     """
     if geometry is None:
         return None
     
     try:
-        # Adaptive tolerance based on geometry size
-        if hasattr(geometry, 'area') and geometry.area > 1000:
-            # Increase tolerance for very large geometries
-            adaptive_tolerance = max(tolerance, 0.001)
-        else:
-            adaptive_tolerance = tolerance
+        # For extremely large geometries, use very high tolerance
+        if hasattr(geometry, 'area') and geometry.area > 10000:
+            tolerance = max(tolerance, 0.01)  # Very aggressive for huge geometries
+        elif hasattr(geometry, 'area') and geometry.area > 1000:
+            tolerance = max(tolerance, 0.005)  # Aggressive for large geometries
         
-        # Simplify with adaptive tolerance
-        simplified = geometry.simplify(adaptive_tolerance, preserve_topology=True)
+        # Simplify with aggressive tolerance
+        simplified = geometry.simplify(tolerance, preserve_topology=True)
+        
+        # If still too complex, simplify further
+        if hasattr(simplified, 'area') and simplified.area > 5000:
+            simplified = simplified.simplify(tolerance * 2, preserve_topology=True)
         
         # Quick validation
         if simplified.is_valid:
@@ -52,26 +56,23 @@ def simplify_geometry(geometry, tolerance=0.0001):
         print(f"Error simplifying geometry: {e}")
         return geometry
 
-def preprocess_geometries(gdf, tolerance=0.0001):
+def process_geometry_chunk(geometries, tolerance=0.001, chunk_size=10):
     """
-    Pre-process all geometries in batch for better performance
+    Process geometries in small chunks to avoid memory issues
     """
-    print("Pre-processing geometries...")
-    start_time = time.time()
+    simplified_geometries = []
+    areas = []
     
-    # Create progress bar for geometry processing
-    with tqdm(total=len(gdf), desc="Simplifying geometries") as pbar:
-        simplified_geometries = []
-        areas = []
+    for i in range(0, len(geometries), chunk_size):
+        chunk = geometries[i:i+chunk_size]
         
-        for idx, row in gdf.iterrows():
-            geometry = row.geometry
+        for geometry in chunk:
             if geometry is None:
                 simplified_geometries.append(None)
                 areas.append(0)
             else:
-                # Simplify geometry
-                simplified = simplify_geometry(geometry, tolerance)
+                # Aggressive simplification
+                simplified = aggressive_simplify_geometry(geometry, tolerance)
                 simplified_geometries.append(simplified)
                 
                 # Calculate area
@@ -80,17 +81,15 @@ def preprocess_geometries(gdf, tolerance=0.0001):
                 else:
                     area = 0
                 areas.append(area)
-            
-            pbar.update(1)
-    
-    elapsed = time.time() - start_time
-    print(f"Geometry processing completed in {elapsed:.2f} seconds")
+        
+        # Force garbage collection after each chunk
+        gc.collect()
     
     return simplified_geometries, areas
 
-def import_flood_data(shapefile_path, risk_column='VAR', tolerance=0.0001, batch_size=100, max_records=None):
+def import_flood_data(shapefile_path, risk_column='VAR', tolerance=0.001, batch_size=50, max_records=None):
     """
-    Optimized flood data import with progress reporting
+    Ultra-optimized flood data import with chunked processing
     """
     print(f"Importing flood data from: {shapefile_path}")
     start_time = time.time()
@@ -107,11 +106,21 @@ def import_flood_data(shapefile_path, risk_column='VAR', tolerance=0.0001, batch
             print(f"Limiting to {max_records} records for testing...")
             gdf = gdf.head(max_records)
         
-        # Check if VAR column exists
-        if risk_column not in gdf.columns:
+        # Check if VAR column exists (case-insensitive)
+        risk_column_found = None
+        for col in gdf.columns:
+            if col.lower() == risk_column.lower():
+                risk_column_found = col
+                break
+        
+        if risk_column_found:
+            risk_column = risk_column_found
+            print(f"Using column '{risk_column}' for risk values")
+        else:
             print(f"Warning: Column '{risk_column}' not found. Available columns: {list(gdf.columns)}")
+            # Use first non-geometry column
             for col in gdf.columns:
-                if 'risk' in col.lower() or 'var' in col.lower():
+                if col != 'geometry':
                     risk_column = col
                     print(f"Using column '{risk_column}' instead")
                     break
@@ -121,8 +130,10 @@ def import_flood_data(shapefile_path, risk_column='VAR', tolerance=0.0001, batch
             print(f"Reprojecting from {gdf.crs} to EPSG:4326...")
             gdf = gdf.to_crs('EPSG:4326')
         
-        # Pre-process all geometries
-        simplified_geometries, areas = preprocess_geometries(gdf, tolerance)
+        # Process geometries in chunks
+        print("Processing geometries in chunks...")
+        geometries = list(gdf.geometry)
+        simplified_geometries, areas = process_geometry_chunk(geometries, tolerance, chunk_size=5)
         
         # Create database session
         Session = sessionmaker(bind=engine)
@@ -132,7 +143,7 @@ def import_flood_data(shapefile_path, risk_column='VAR', tolerance=0.0001, batch
         error_count = 0
         
         print("Importing to database...")
-        # Use tqdm for progress bar
+        # Process in small batches with progress bar
         for index, row in tqdm(gdf.iterrows(), total=len(gdf), desc="Importing records"):
             try:
                 # Get risk value
@@ -147,23 +158,20 @@ def import_flood_data(shapefile_path, risk_column='VAR', tolerance=0.0001, batch
                 # Get pre-processed geometry
                 simplified_geometry = simplified_geometries[index]
                 if simplified_geometry is None:
+                    print(f"  Skipping record {index}: No valid geometry after simplification")
                     error_count += 1
                     continue
                 
                 # Create flood data record
                 flood_data = FloodData(
-                    location=simplified_geometry.wkt,
-                    flood_level=risk_value,
-                    flood_type='shapefile_import',
-                    severity=severity,
-                    affected_area=areas[index],
-                    water_depth=risk_value,
+                    geometry=simplified_geometry.wkt,
+                    risk_value=str(int(risk_value))
                 )
                 
                 session.add(flood_data)
                 imported_count += 1
                 
-                # Commit in batches
+                # Commit in smaller batches
                 if imported_count % batch_size == 0:
                     session.commit()
                     print(f"  Committed batch. Total imported: {imported_count}")
@@ -193,9 +201,9 @@ def import_flood_data(shapefile_path, risk_column='VAR', tolerance=0.0001, batch
         traceback.print_exc()
         return 0, 0
 
-def import_landslide_data(shapefile_path, risk_column='LH', tolerance=0.0001, batch_size=100, max_records=None):
+def import_landslide_data(shapefile_path, risk_column='LH', tolerance=0.001, batch_size=50, max_records=None):
     """
-    Optimized landslide data import with progress reporting
+    Ultra-optimized landslide data import with chunked processing
     """
     print(f"Importing landslide data from: {shapefile_path}")
     start_time = time.time()
@@ -212,11 +220,21 @@ def import_landslide_data(shapefile_path, risk_column='LH', tolerance=0.0001, ba
             print(f"Limiting to {max_records} records for testing...")
             gdf = gdf.head(max_records)
         
-        # Check if LH column exists
-        if risk_column not in gdf.columns:
+        # Check if LH column exists (case-insensitive)
+        risk_column_found = None
+        for col in gdf.columns:
+            if col.lower() == risk_column.lower():
+                risk_column_found = col
+                break
+        
+        if risk_column_found:
+            risk_column = risk_column_found
+            print(f"Using column '{risk_column}' for risk values")
+        else:
             print(f"Warning: Column '{risk_column}' not found. Available columns: {list(gdf.columns)}")
+            # Use first non-geometry column
             for col in gdf.columns:
-                if 'risk' in col.lower() or 'lh' in col.lower():
+                if col != 'geometry':
                     risk_column = col
                     print(f"Using column '{risk_column}' instead")
                     break
@@ -226,8 +244,10 @@ def import_landslide_data(shapefile_path, risk_column='LH', tolerance=0.0001, ba
             print(f"Reprojecting from {gdf.crs} to EPSG:4326...")
             gdf = gdf.to_crs('EPSG:4326')
         
-        # Pre-process all geometries
-        simplified_geometries, areas = preprocess_geometries(gdf, tolerance)
+        # Process geometries in chunks
+        print("Processing geometries in chunks...")
+        geometries = list(gdf.geometry)
+        simplified_geometries, areas = process_geometry_chunk(geometries, tolerance, chunk_size=5)
         
         # Create database session
         Session = sessionmaker(bind=engine)
@@ -237,7 +257,7 @@ def import_landslide_data(shapefile_path, risk_column='LH', tolerance=0.0001, ba
         error_count = 0
         
         print("Importing to database...")
-        # Use tqdm for progress bar
+        # Process in small batches with progress bar
         for index, row in tqdm(gdf.iterrows(), total=len(gdf), desc="Importing records"):
             try:
                 # Get risk value
@@ -252,24 +272,20 @@ def import_landslide_data(shapefile_path, risk_column='LH', tolerance=0.0001, ba
                 # Get pre-processed geometry
                 simplified_geometry = simplified_geometries[index]
                 if simplified_geometry is None:
+                    print(f"  Skipping record {index}: No valid geometry after simplification")
                     error_count += 1
                     continue
                 
                 # Create landslide data record
                 landslide_data = LandslideData(
-                    location=simplified_geometry.wkt,
-                    landslide_type='shapefile_import',
-                    severity=severity,
-                    affected_area=areas[index],
-                    slope_angle=risk_value * 10,
-                    soil_type='unknown',
-                    vegetation_cover=50.0,
+                    geometry=simplified_geometry.wkt,
+                    risk_value=str(int(risk_value))
                 )
                 
                 session.add(landslide_data)
                 imported_count += 1
                 
-                # Commit in batches
+                # Commit in smaller batches
                 if imported_count % batch_size == 0:
                     session.commit()
                     print(f"  Committed batch. Total imported: {imported_count}")
@@ -307,16 +323,16 @@ def main():
     parser.add_argument('--landslide-file', type=str, help='Path to landslide shapefile')
     parser.add_argument('--risk-column', type=str, default='VAR',
                        help='Name of the risk column (default: VAR for flood, LH for landslide)')
-    parser.add_argument('--tolerance', type=float, default=0.0001,
-                       help='Geometry simplification tolerance (default: 0.0001)')
-    parser.add_argument('--batch-size', type=int, default=100,
-                       help='Batch size for database commits (default: 100)')
+    parser.add_argument('--tolerance', type=float, default=0.001,
+                       help='Geometry simplification tolerance (default: 0.001)')
+    parser.add_argument('--batch-size', type=int, default=50,
+                       help='Batch size for database commits (default: 50)')
     parser.add_argument('--max-records', type=int, default=None,
                        help='Maximum number of records to import (for testing)')
     
     args = parser.parse_args()
     
-    print("�� Starting optimized shapefile import...")
+    print("🚀 Starting ultra-optimized shapefile import...")
     print(f"   Type: {args.type}")
     print(f"   Risk column: {args.risk_column}")
     print(f"   Tolerance: {args.tolerance}")
