@@ -23,9 +23,15 @@ class RiskAssessmentEngine:
         Args:
             openrouter_api_key: OpenRouter API key for LLM access
         """
-        self.openrouter_api_key = openrouter_api_key or os.getenv('OPENROUTER_API_KEY')
+        # Debug: Print environment variable
+        env_key = os.getenv('OPENROUTER_API_KEY')
+        print(f"🔍 Debug: OPENROUTER_API_KEY from env: {'Set' if env_key else 'Not found'}")
+        
+        self.openrouter_api_key = openrouter_api_key or env_key
         if not self.openrouter_api_key:
             print("⚠️ Warning: No OpenRouter API key found. Risk assessment will be limited.")
+        else:
+            print("✅ OpenRouter API key found and loaded successfully.")
         
         self.base_url = "https://openrouter.ai/api/v1"
         self.model = "google/gemma-3-27b-it:free"

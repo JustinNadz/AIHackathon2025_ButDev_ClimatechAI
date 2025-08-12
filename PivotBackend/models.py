@@ -32,3 +32,18 @@ class LandslideData(Base):
     geometry = Column(Geometry('MULTIPOLYGON', srid=4326), nullable=False)
     risk_value = Column(String(50))
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
+
+class RiskAssessmentData(Base):
+    __tablename__ = "risk_assessment_data"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    location = Column(Geometry('POINT', srid=4326), nullable=False)
+    weather_data_id = Column(Integer, nullable=True)  # Reference to weather_data
+    flood_risk = Column(String(50), nullable=True)
+    landslide_risk = Column(String(50), nullable=True)
+    ai_risk_score = Column(Integer, nullable=True)
+    ai_risk_level = Column(String(50), nullable=True)  # low, medium, high, critical
+    ai_assessment_summary = Column(Text, nullable=True)
+    ai_recommendations = Column(Text, nullable=True)
+    ai_factors = Column(Text, nullable=True)  # JSON string of contributing factors
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
