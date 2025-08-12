@@ -127,14 +127,13 @@ def get_landslide_data_by_risk(db: Session, min_risk: float = None, max_risk: fl
 # ============================================================================
 
 
-def add_weather_data(db: Session, longitude: float, latitude: float, temperature: float = None, humidity: float = None,
+def add_weather_data(db: Session, geometry_wkt: str, temperature: float = None, humidity: float = None,
                     rainfall: float = None, wind_speed: float = None, wind_direction: float = None,
                     pressure: float = None, station_name: str = None, recorded_at: datetime = None,
                     source: str = None, metadata: dict = None):
     """Add weather data to the database"""
     weather_data = WeatherData(
-        longitude=longitude,
-        latitude=latitude,
+        geometry=geometry_wkt,
         temperature=temperature,
         humidity=humidity,
         rainfall=rainfall,

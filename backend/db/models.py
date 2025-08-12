@@ -30,7 +30,7 @@ class LandslideData(Base):
     risk_level = Column(Float, nullable=False)  # 1-3 scale for landslide risk
 
 
-class WeatherData(Base): # TODO: this is placeholder, weather doesn't have geometry
+class WeatherData(Base):
     __tablename__ = "weather_data"
     id = Column(Integer, primary_key=True, autoincrement=True)
     geometry = Column(Geometry('POINT', srid=4326), nullable=False)
