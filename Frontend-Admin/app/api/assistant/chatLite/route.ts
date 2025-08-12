@@ -4,8 +4,7 @@ import path from 'path';
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt } = await request.json();
-    const { mode } = await request.json();
+    const { prompt, mode } = await request.json();
     
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
