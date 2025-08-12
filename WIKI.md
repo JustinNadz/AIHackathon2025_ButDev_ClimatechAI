@@ -157,6 +157,12 @@ python refresh_database.py
 - `GET /api/weather-data` - Get weather data with optional time filtering
 - `GET /api/weather-data/stats` - Get weather data statistics
 
+### Assistant
+- `POST /api/assistant` - Hazard snapshot and recommendations based on lat/lng
+  - Body: `{ "lat": number, "lng": number, "hours_earthquake?": int, "eq_radius_km?": number, "weather_hours?": int, "weather_radius_km?": number }`
+- `POST /api/assistant/chat` - RAG + Gemma-3 assistant; combines hazards and retrieved guidance
+  - Body: `{ "lat": number, "lng": number, "question": string, ...optional same knobs... }`
+
 ### Example API Calls
 
 ```bash
@@ -171,6 +177,16 @@ curl "http://localhost:5000/api/seismic-data?hours=24"
 
 # Get weather data for last hour
 curl "http://localhost:5000/api/weather-data?hours=1"
+
+# Assistant (hazard snapshot)
+curl -s -X POST http://localhost:5000/api/assistant \
+  -H "Content-Type: application/json" \
+  -d '{"lat":14.5995,"lng":120.9842}'
+
+# Assistant chat (RAG + Gemma-3)
+curl -s -X POST http://localhost:5000/api/assistant/chat \
+  -H "Content-Type: application/json" \
+  -d '{"lat":14.5995,"lng":120.9842,"question":"What should I do right now?"}'
 ```
 
 ## Data Schema
@@ -224,6 +240,30 @@ curl "http://localhost:5000/api/weather-data?hours=1"
 - **Source**: Google Weather API (requires API key)
 - **Coverage**: Philippines region
 - **Update Frequency**: Real-time via API calls
+
+## RAG + LLM Setup
+
+### Model (OpenRouter via LangChain)
+- Model: `google/gemma-3-27b-it:free`
+- Configure environment variable:
+```bash
+export OPENROUTER_API_KEY="your_openrouter_key"
+```
+
+### Vector Store
+- Uses Chroma (persisted at `CHROMA_DB_DIR` in `.env`)
+- Embeddings: prefers HuggingFace `sentence-transformers/all-MiniLM-L6-v2`; falls back to OpenRouter OpenAIEmbeddings if HF unavailable
+
+### Ingest Guidance Texts
+```bash
+curl -s -X POST http://localhost:5000/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"texts":[
+    "Flood prep: move valuables up, prepare go-bag, avoid crossing fast water.",
+    "Landslide prep: avoid steep slopes during heavy rain, evacuate if cracks appear.",
+    "Heat risk: hydrate, avoid midday labor, check elderly, seek shade/cooling center."
+  ]}'
+```
 
 ## Example Usage
 
@@ -290,6 +330,11 @@ python run_ingestions.py landslide data/landslide_zones.shp --risk-column "RISK"
 ### Logs
 
 Check application logs for detailed error messages and debugging information. The Flask app provides verbose logging for troubleshooting.
+
+## Performance Tips
+- For very large flood polygons, use on-the-fly simplification params when calling:
+  - `/api/flood-data?simplify_tolerance=0.0005&precision=5`
+- Filter by map bounds and limit results on the client for large datasets.
 
 ## Development
 
