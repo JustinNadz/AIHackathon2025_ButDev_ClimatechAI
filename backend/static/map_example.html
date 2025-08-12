@@ -1,20 +1,82 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Flood Risk Map</title>
+    <title>Disaster Data Management System</title>
     <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
         #map {
-            height: 500px;
+            height: 600px;
             width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         .controls {
             margin: 20px 0;
-            padding: 10px;
-            background: #f5f5f5;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .control-section {
+            margin: 15px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #fafafa;
+        }
+        .control-section h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .control-group {
+            display: inline-block;
+            margin: 5px 15px 5px 0;
+        }
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        .control-group input, .control-group select {
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            width: 120px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 2px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button.clear {
+            background: #dc3545;
+        }
+        button.clear:hover {
+            background: #c82333;
         }
         .risk-low { background-color: #90EE90; }
         .risk-medium { background-color: #FFD700; }
         .risk-high { background-color: #FF6B6B; }
+        .magnitude-micro { background-color: #90EE90; }
+        .magnitude-minor { background-color: #FFD700; }
+        .magnitude-light { background-color: #FFA500; }
+        .magnitude-moderate { background-color: #FF6B6B; }
+        .magnitude-strong { background-color: #FF0000; }
+        .magnitude-major { background-color: #8B0000; }
+        .magnitude-great { background-color: #4B0082; }
+        .weather-station { background-color: #87CEEB; }
         .error {
             color: red;
             background: #ffe6e6;
@@ -29,17 +91,131 @@
             margin: 10px 0;
             border-radius: 5px;
         }
+        .warning {
+            color: orange;
+            background: #fff3cd;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .info {
+            color: blue;
+            background: #d1ecf1;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        #status {
+            margin: 10px 0;
+        }
+        #stats {
+            margin: 20px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .stats-card {
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #f8f9fa;
+        }
+        .legend {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            border: 1px solid #000;
+        }
     </style>
 </head>
 <body>
-    <h1>Flood Risk Map</h1>
+    <h1>🌊 Disaster Data Management System</h1>
     
     <div class="controls">
-        <label>Min Risk: <input type="number" id="minRisk" min="1" max="3" step="0.1" value="1"></label>
-        <label>Max Risk: <input type="number" id="maxRisk" min="1" max="3" step="0.1" value="3"></label>
-        <button onclick="loadFloodData()">Load Flood Data</button>
-        <button onclick="loadStats()">Load Statistics</button>
-        <button onclick="clearMap()">Clear Map</button>
+        <div class="control-section">
+            <h3>🌊 Flood Data</h3>
+            <div class="control-group">
+                <label>Min Risk:</label>
+                <input type="number" id="floodMinRisk" min="1" max="3" step="0.1" value="1">
+            </div>
+            <div class="control-group">
+                <label>Max Risk:</label>
+                <input type="number" id="floodMaxRisk" min="1" max="3" step="0.1" value="3">
+            </div>
+            <button onclick="loadFloodData()">Load Flood Data</button>
+            <button onclick="loadFloodStats()">Flood Stats</button>
+        </div>
+
+        <div class="control-section">
+            <h3>��️ Landslide Data</h3>
+            <div class="control-group">
+                <label>Min Risk:</label>
+                <input type="number" id="landslideMinRisk" min="1" max="3" step="0.1" value="1">
+            </div>
+            <div class="control-group">
+                <label>Max Risk:</label>
+                <input type="number" id="landslideMaxRisk" min="1" max="3" step="0.1" value="3">
+            </div>
+            <button onclick="loadLandslideData()">Load Landslide Data</button>
+            <button onclick="loadLandslideStats()">Landslide Stats</button>
+        </div>
+
+        <div class="control-section">
+            <h3>�� Seismic Data</h3>
+            <div class="control-group">
+                <label>Min Magnitude:</label>
+                <input type="number" id="seismicMinMag" min="0" max="10" step="0.1" value="0">
+            </div>
+            <div class="control-group">
+                <label>Max Magnitude:</label>
+                <input type="number" id="seismicMaxMag" min="0" max="10" step="0.1" value="10">
+            </div>
+            <div class="control-group">
+                <label>Hours:</label>
+                <input type="number" id="seismicHours" min="1" max="168" value="24">
+            </div>
+            <button onclick="loadSeismicData()">Load Seismic Data</button>
+            <button onclick="loadSeismicStats()">Seismic Stats</button>
+        </div>
+
+        <div class="control-section">
+            <h3>🌤️ Weather Data</h3>
+            <div class="control-group">
+                <label>Hours:</label>
+                <input type="number" id="weatherHours" min="1" max="24" value="1">
+            </div>
+            <button onclick="loadWeatherData()">Load Weather Data</button>
+            <button onclick="loadWeatherStats()">Weather Stats</button>
+        </div>
+
+        <div class="control-section">
+            <h3>🗺️ Map Controls</h3>
+            <button onclick="loadAllData()">Load All Data</button>
+            <button onclick="loadAllStats()">All Statistics</button>
+            <button class="clear" onclick="clearMap()">Clear Map</button>
+        </div>
     </div>
     
     <div id="status"></div>
@@ -48,7 +224,8 @@
 
     <script>
         let map;
-        let floodLayer;
+        let floodLayer, landslideLayer, seismicLayer, weatherLayer;
+        let layers = {};
 
         function initMap() {
             console.log('Initializing map...');
@@ -56,14 +233,41 @@
             // Initialize map centered on Philippines
             map = new google.maps.Map(document.getElementById('map'), {
                 center: { lat: 12.8797, lng: 121.7740 },
-                zoom: 6
+                zoom: 6,
+                mapTypeId: google.maps.MapTypeId.TERRAIN
             });
             
-            // Create a layer for flood data
+            // Create layers for different data types
             floodLayer = new google.maps.Data();
-            floodLayer.setMap(map);
+            landslideLayer = new google.maps.Data();
+            seismicLayer = new google.maps.Data();
+            weatherLayer = new google.maps.Data();
             
-            // Set up styling for the entire layer
+            // Set up styling for flood data
+            setupFloodStyling();
+            setupLandslideStyling();
+            setupSeismicStyling();
+            setupWeatherStyling();
+            
+            // Add layers to map
+            floodLayer.setMap(map);
+            landslideLayer.setMap(map);
+            seismicLayer.setMap(map);
+            weatherLayer.setMap(map);
+            
+            // Store layers for easy access
+            layers = {
+                flood: floodLayer,
+                landslide: landslideLayer,
+                seismic: seismicLayer,
+                weather: weatherLayer
+            };
+            
+            console.log('Map initialized successfully');
+            showStatus('Map loaded successfully. Use controls to load different data types.', 'success');
+        }
+
+        function setupFloodStyling() {
             floodLayer.setStyle({
                 property: 'risk_category',
                 value: 'low',
@@ -74,7 +278,6 @@
                     strokeColor: '#000000'
                 }
             });
-            
             floodLayer.setStyle({
                 property: 'risk_category',
                 value: 'medium',
@@ -85,7 +288,6 @@
                     strokeColor: '#000000'
                 }
             });
-            
             floodLayer.setStyle({
                 property: 'risk_category',
                 value: 'high',
@@ -96,19 +298,138 @@
                     strokeColor: '#000000'
                 }
             });
-            
-            console.log('Map initialized successfully');
-            showStatus('Map loaded successfully. Click "Load Flood Data" to see flood areas.', 'success');
+        }
+
+        function setupLandslideStyling() {
+            landslideLayer.setStyle({
+                property: 'risk_category',
+                value: 'low',
+                style: {
+                    fillColor: '#90EE90',
+                    fillOpacity: 0.6,
+                    strokeWeight: 2,
+                    strokeColor: '#000000'
+                }
+            });
+            landslideLayer.setStyle({
+                property: 'risk_category',
+                value: 'medium',
+                style: {
+                    fillColor: '#FFD700',
+                    fillOpacity: 0.6,
+                    strokeWeight: 2,
+                    strokeColor: '#000000'
+                }
+            });
+            landslideLayer.setStyle({
+                property: 'risk_category',
+                value: 'high',
+                style: {
+                    fillColor: '#FF6B6B',
+                    fillOpacity: 0.6,
+                    strokeWeight: 2,
+                    strokeColor: '#000000'
+                }
+            });
+        }
+
+        function setupSeismicStyling() {
+            seismicLayer.setStyle({
+                property: 'magnitude_category',
+                value: 'micro',
+                style: {
+                    fillColor: '#90EE90',
+                    fillOpacity: 0.8,
+                    strokeWeight: 1,
+                    strokeColor: '#000000',
+                    scale: 3
+                }
+            });
+            seismicLayer.setStyle({
+                property: 'magnitude_category',
+                value: 'minor',
+                style: {
+                    fillColor: '#FFD700',
+                    fillOpacity: 0.8,
+                    strokeWeight: 1,
+                    strokeColor: '#000000',
+                    scale: 4
+                }
+            });
+            seismicLayer.setStyle({
+                property: 'magnitude_category',
+                value: 'light',
+                style: {
+                    fillColor: '#FFA500',
+                    fillOpacity: 0.8,
+                    strokeWeight: 1,
+                    strokeColor: '#000000',
+                    scale: 5
+                }
+            });
+            seismicLayer.setStyle({
+                property: 'magnitude_category',
+                value: 'moderate',
+                style: {
+                    fillColor: '#FF6B6B',
+                    fillOpacity: 0.8,
+                    strokeWeight: 1,
+                    strokeColor: '#000000',
+                    scale: 6
+                }
+            });
+            seismicLayer.setStyle({
+                property: 'magnitude_category',
+                value: 'strong',
+                style: {
+                    fillColor: '#FF0000',
+                    fillOpacity: 0.8,
+                    strokeWeight: 1,
+                    strokeColor: '#000000',
+                    scale: 7
+                }
+            });
+            seismicLayer.setStyle({
+                property: 'magnitude_category',
+                value: 'major',
+                style: {
+                    fillColor: '#8B0000',
+                    fillOpacity: 0.8,
+                    strokeWeight: 1,
+                    strokeColor: '#000000',
+                    scale: 8
+                }
+            });
+            seismicLayer.setStyle({
+                property: 'magnitude_category',
+                value: 'great',
+                style: {
+                    fillColor: '#4B0082',
+                    fillOpacity: 0.8,
+                    strokeWeight: 1,
+                    strokeColor: '#000000',
+                    scale: 9
+                }
+            });
+        }
+
+        function setupWeatherStyling() {
+            weatherLayer.setStyle({
+                fillColor: '#87CEEB',
+                fillOpacity: 0.7,
+                strokeWeight: 2,
+                strokeColor: '#000000',
+                scale: 4
+            });
         }
 
         async function loadFloodData() {
-            const minRisk = document.getElementById('minRisk').value;
-            const maxRisk = document.getElementById('maxRisk').value;
+            const minRisk = document.getElementById('floodMinRisk').value;
+            const maxRisk = document.getElementById('floodMaxRisk').value;
             
             showStatus('Loading flood data...', 'info');
             
             try {
-                console.log(`Fetching flood data with risk range: ${minRisk}-${maxRisk}`);
                 const response = await fetch(`/api/flood-data?min_risk=${minRisk}&max_risk=${maxRisk}`);
                 
                 if (!response.ok) {
@@ -116,7 +437,6 @@
                 }
                 
                 const data = await response.json();
-                console.log('Received data:', data);
                 
                 if (data.error) {
                     throw new Error(data.error);
@@ -127,8 +447,8 @@
                     return;
                 }
                 
-                // Clear existing data
-                clearMap();
+                // Clear existing flood data
+                floodLayer.forEach(feature => floodLayer.remove(feature));
                 
                 // Add new data
                 floodLayer.addGeoJson(data);
@@ -142,11 +462,208 @@
             }
         }
 
-        async function loadStats() {
-            showStatus('Loading statistics...', 'info');
+        async function loadLandslideData() {
+            const minRisk = document.getElementById('landslideMinRisk').value;
+            const maxRisk = document.getElementById('landslideMaxRisk').value;
+            
+            showStatus('Loading landslide data...', 'info');
             
             try {
-                const response = await fetch('/api/flood-data/stats');
+                const response = await fetch(`/api/landslide-data?min_risk=${minRisk}&max_risk=${maxRisk}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                if (!data.features || data.features.length === 0) {
+                    showStatus('No landslide data found for the specified risk range.', 'warning');
+                    return;
+                }
+                
+                // Clear existing landslide data
+                landslideLayer.forEach(feature => landslideLayer.remove(feature));
+                
+                // Add new data
+                landslideLayer.addGeoJson(data);
+                
+                console.log(`Loaded ${data.total} landslide areas`);
+                showStatus(`Successfully loaded ${data.total} landslide areas`, 'success');
+                
+            } catch (error) {
+                console.error('Error loading landslide data:', error);
+                showStatus(`Error loading landslide data: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadSeismicData() {
+            const minMag = document.getElementById('seismicMinMag').value;
+            const maxMag = document.getElementById('seismicMaxMag').value;
+            const hours = document.getElementById('seismicHours').value;
+            
+            showStatus('Loading seismic data...', 'info');
+            
+            try {
+                let url = '/api/seismic-data?';
+                if (minMag && maxMag) {
+                    url += `min_magnitude=${minMag}&max_magnitude=${maxMag}`;
+                } else {
+                    url += `hours=${hours}`;
+                }
+                
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                if (!data.features || data.features.length === 0) {
+                    showStatus('No seismic data found for the specified criteria.', 'warning');
+                    return;
+                }
+                
+                // Clear existing seismic data
+                seismicLayer.forEach(feature => seismicLayer.remove(feature));
+                
+                // Add new data
+                seismicLayer.addGeoJson(data);
+                
+                console.log(`Loaded ${data.total} seismic events`);
+                showStatus(`Successfully loaded ${data.total} seismic events`, 'success');
+                
+            } catch (error) {
+                console.error('Error loading seismic data:', error);
+                showStatus(`Error loading seismic data: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadWeatherData() {
+            const hours = document.getElementById('weatherHours').value;
+            
+            showStatus('Loading weather data...', 'info');
+            
+            try {
+                const response = await fetch(`/api/weather-data?hours=${hours}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                if (!data.features || data.features.length === 0) {
+                    showStatus('No weather data found for the specified time range.', 'warning');
+                    return;
+                }
+                
+                // Clear existing weather data
+                weatherLayer.forEach(feature => weatherLayer.remove(feature));
+                
+                // Add new data
+                weatherLayer.addGeoJson(data);
+                
+                console.log(`Loaded ${data.total} weather stations`);
+                showStatus(`Successfully loaded ${data.total} weather stations`, 'success');
+                
+            } catch (error) {
+                console.error('Error loading weather data:', error);
+                showStatus(`Error loading weather data: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadAllData() {
+            showStatus('Loading all data types...', 'info');
+            await Promise.all([
+                loadFloodData(),
+                loadLandslideData(),
+                loadSeismicData(),
+                loadWeatherData()
+            ]);
+            showStatus('All data loaded successfully', 'success');
+        }
+
+        async function loadFloodStats() {
+            await loadStats('/api/flood-data/stats', 'Flood Data Statistics');
+        }
+
+        async function loadLandslideStats() {
+            await loadStats('/api/landslide-data/stats', 'Landslide Data Statistics');
+        }
+
+        async function loadSeismicStats() {
+            await loadStats('/api/seismic-data/stats', 'Seismic Data Statistics');
+        }
+
+        async function loadWeatherStats() {
+            await loadStats('/api/weather-data/stats', 'Weather Data Statistics');
+        }
+
+        async function loadAllStats() {
+            showStatus('Loading all statistics...', 'info');
+            
+            try {
+                const [floodStats, landslideStats, seismicStats, weatherStats] = await Promise.all([
+                    fetch('/api/flood-data/stats').then(r => r.json()),
+                    fetch('/api/landslide-data/stats').then(r => r.json()),
+                    fetch('/api/seismic-data/stats').then(r => r.json()),
+                    fetch('/api/weather-data/stats').then(r => r.json())
+                ]);
+                
+                const statsDiv = document.getElementById('stats');
+                statsDiv.innerHTML = `
+                    <h3>📊 All Data Statistics</h3>
+                    <div class="stats-grid">
+                        <div class="stats-card">
+                            <h4>🌊 Flood Data</h4>
+                            <p>Total areas: ${floodStats.total_flood_areas || 0}</p>
+                            <p>Avg risk: ${floodStats.risk_statistics?.avg_risk?.toFixed(2) || 'N/A'}</p>
+                        </div>
+                        <div class="stats-card">
+                            <h4>��️ Landslide Data</h4>
+                            <p>Total areas: ${landslideStats.total_landslide_areas || 0}</p>
+                            <p>Avg risk: ${landslideStats.risk_statistics?.avg_risk?.toFixed(2) || 'N/A'}</p>
+                        </div>
+                        <div class="stats-card">
+                            <h4>�� Seismic Data</h4>
+                            <p>Total events: ${seismicStats.total_seismic_events || 0}</p>
+                            <p>Avg magnitude: ${seismicStats.magnitude_statistics?.avg_magnitude?.toFixed(2) || 'N/A'}</p>
+                        </div>
+                        <div class="stats-card">
+                            <h4>🌤️ Weather Data</h4>
+                            <p>Total stations: ${weatherStats.total_weather_stations || 0}</p>
+                            <p>Avg temperature: ${weatherStats.temperature_statistics?.avg_temp?.toFixed(1) || 'N/A'}°C</p>
+                        </div>
+                    </div>
+                `;
+                
+                showStatus('All statistics loaded successfully', 'success');
+                
+            } catch (error) {
+                console.error('Error loading all stats:', error);
+                showStatus(`Error loading statistics: ${error.message}`, 'error');
+            }
+        }
+
+        async function loadStats(endpoint, title) {
+            showStatus(`Loading ${title.toLowerCase()}...`, 'info');
+            
+            try {
+                const response = await fetch(endpoint);
                 
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -160,31 +677,24 @@
                 
                 const statsDiv = document.getElementById('stats');
                 statsDiv.innerHTML = `
-                    <h3>Flood Data Statistics</h3>
-                    <p>Total flood areas: ${data.total_flood_areas}</p>
-                    <p>Risk range: ${data.risk_statistics.min_risk} - ${data.risk_statistics.max_risk}</p>
-                    <p>Average risk: ${data.risk_statistics.avg_risk.toFixed(2)}</p>
-                    <h4>Risk Distribution:</h4>
-                    <ul>
-                        ${data.risk_distribution.map(d => 
-                            `<li>Risk ${d.risk_level}: ${d.count} areas</li>`
-                        ).join('')}
-                    </ul>
+                    <h3>${title}</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
                 `;
                 
-                showStatus('Statistics loaded successfully', 'success');
+                showStatus(`${title} loaded successfully`, 'success');
                 
             } catch (error) {
-                console.error('Error loading stats:', error);
-                showStatus(`Error loading statistics: ${error.message}`, 'error');
+                console.error(`Error loading ${title.toLowerCase()}:`, error);
+                showStatus(`Error loading ${title.toLowerCase()}: ${error.message}`, 'error');
             }
         }
 
         function clearMap() {
-            if (floodLayer) {
-                floodLayer.forEach(feature => floodLayer.remove(feature));
-            }
-            showStatus('Map cleared', 'info');
+            Object.values(layers).forEach(layer => {
+                layer.forEach(feature => layer.remove(feature));
+            });
+            document.getElementById('stats').innerHTML = '';
+            showStatus('Map and statistics cleared', 'info');
         }
 
         function showStatus(message, type) {
