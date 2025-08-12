@@ -23,6 +23,19 @@ def add_flood_data(db: Session, geometry_wkt: str, risk_level: float):
     return flood_data
 
 
+def add_flood_data_batch(db: Session, flood_data_list: list):
+    """
+    Add multiple flood data records to the database in a single batch
+    
+    Args:
+        db: Database session
+        flood_data_list: List of FloodData objects to insert
+    """
+    db.add_all(flood_data_list)
+    db.commit()
+    return len(flood_data_list)
+
+
 def get_flood_data_by_risk(db: Session, min_risk: float = None, max_risk: float = None):
     """Get flood data filtered by risk level"""
     query = db.query(FloodData)
