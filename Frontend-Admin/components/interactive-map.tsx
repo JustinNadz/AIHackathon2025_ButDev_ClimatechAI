@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
-import { MapPin, Layers, Droplets, Mountain, Flame, Cloud, ArrowLeft, ChevronDown, Info } from "lucide-react"
+import { MapPin, Layers, Droplets, Mountain, Zap, Flame, Cloud, ArrowLeft, ChevronDown, Info } from "lucide-react"
 import dynamic from "next/dynamic"
 
 // Props for the AlphaEarth overlay component
@@ -624,6 +624,12 @@ export function InteractiveMap() {
 	const [isLoadingFloodData, setIsLoadingFloodData] = useState(false);
 	const [isLoadingLandslideData, setIsLoadingLandslideData] = useState(false);
 	const [isLoadingSeismicData, setIsLoadingSeismicData] = useState(false);
+	
+	// Missing state variables
+	const [currentMapCenter, setCurrentMapCenter] = useState<{ lat: number, lng: number }>({ lat: 10.7302, lng: 122.5591 });
+	const [queryRadius, setQueryRadius] = useState<number>(50);
+	const [seismicMarkers, setSeismicMarkers] = useState<google.maps.Marker[]>([]);
+	
 	const scrollContainerRef = useRef<HTMLDivElement>(null);
 	const [canScrollLeft, setCanScrollLeft] = useState(false);
 	const [canScrollRight, setCanScrollRight] = useState(true);
