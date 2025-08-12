@@ -574,6 +574,8 @@ export function InteractiveMap() {
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [isLoadingWeather, setIsLoadingWeather] = useState(false);
+  const [isLoadingFloodData, setIsLoadingFloodData] = useState(false);
+  const [isLoadingLandslideData, setIsLoadingLandslideData] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
@@ -865,7 +867,200 @@ export function InteractiveMap() {
     { id: "fire", label: "Fire Risk", icon: Flame },
   ]
 
-  // Weather data fetching functions
+  // Backend API base URL
+  const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_BASE_URL || 'http://localhost:5000'
+
+  // Data fetching functions
+  const fetchFloodData = async () => {
+    try {
+      setIsLoadingFloodData(true)
+      console.log('🌊 Fetching flood data from backend...')
+      const response = await fetch(`${BACKEND_BASE_URL}/api/flood-data`)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      console.log(`✅ Fetched ${data.features?.length || 0} flood features`)
+      
+      if (data.features && data.features.length > 0) {
+        // Clear existing flood polygons
+        floodPolygons.forEach(polygon => polygon.setMap(null))
+        
+        const newPolygons: google.maps.Polygon[] = []
+        
+        data.features.forEach((feature: any) => {
+          const coordinates = feature.geometry.coordinates[0].map((coord: number[]) => ({
+            lat: coord[1],
+            lng: coord[0]
+          }))
+          
+          const riskLevel = feature.properties.risk_level
+          const color = riskLevel >= 2.5 ? '#FF0000' : riskLevel >= 1.5 ? '#FFA500' : '#00FF00'
+          const opacity = riskLevel >= 2.5 ? 0.7 : riskLevel >= 1.5 ? 0.5 : 0.3
+          
+          const polygon = new google.maps.Polygon({
+            paths: coordinates,
+            strokeColor: color,
+            strokeOpacity: 0.8,
+            strokeWeight: 2,
+            fillColor: color,
+            fillOpacity: opacity,
+            map: map || undefined
+          })
+          
+          // Add click listener for info window
+          polygon.addListener('click', (event: google.maps.MapMouseEvent) => {
+            if (currentInfoWindowRef.current) {
+              currentInfoWindowRef.current.close()
+            }
+            
+            const infoWindow = new google.maps.InfoWindow({
+              content: `
+                <div style="padding: 10px; max-width: 200px;">
+                  <h3 style="margin: 0 0 8px 0; color: #1f2937;">Flood Risk Zone</h3>
+                  <p style="margin: 4px 0; font-size: 14px;">
+                    <strong>Risk Level:</strong> ${feature.properties.risk_level.toFixed(1)}/3.0
+                  </p>
+                  <p style="margin: 4px 0; font-size: 14px;">
+                    <strong>Category:</strong> ${feature.properties.risk_category}
+                  </p>
+                  <p style="margin: 4px 0; font-size: 12px; color: #6b7280;">
+                    ID: ${feature.properties.id}
+                  </p>
+                </div>
+              `,
+              position: event.latLng
+            })
+            
+            infoWindow.open(map)
+            currentInfoWindowRef.current = infoWindow
+          })
+          
+          newPolygons.push(polygon)
+        })
+        
+        setFloodPolygons(newPolygons)
+        console.log(`✅ Added ${newPolygons.length} flood polygons to map`)
+      }
+    } catch (error) {
+      console.error('❌ Error fetching flood data:', error)
+    } finally {
+      setIsLoadingFloodData(false)
+    }
+  }
+
+  const fetchLandslideData = async () => {
+    try {
+      setIsLoadingLandslideData(true)
+      console.log('🏔️ Fetching landslide data from backend...')
+      const response = await fetch(`${BACKEND_BASE_URL}/api/landslide-data`)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      console.log(`✅ Fetched ${data.features?.length || 0} landslide features`)
+      
+      if (data.features && data.features.length > 0) {
+        // Clear existing landslide zones
+        landslideZones.forEach(zone => zone.setMap(null))
+        
+        const newZones: google.maps.Polygon[] = []
+        
+        data.features.forEach((feature: any) => {
+          const coordinates = feature.geometry.coordinates[0].map((coord: number[]) => ({
+            lat: coord[1],
+            lng: coord[0]
+          }))
+          
+          const riskLevel = feature.properties.risk_level
+          const color = riskLevel >= 2.5 ? '#8B4513' : riskLevel >= 1.5 ? '#D2691E' : '#DEB887'
+          const opacity = riskLevel >= 2.5 ? 0.7 : riskLevel >= 1.5 ? 0.5 : 0.3
+          
+          const polygon = new google.maps.Polygon({
+            paths: coordinates,
+            strokeColor: color,
+            strokeOpacity: 0.8,
+            strokeWeight: 2,
+            fillColor: color,
+            fillOpacity: opacity,
+            map: map || undefined
+          })
+          
+          // Add click listener for info window
+          polygon.addListener('click', (event: google.maps.MapMouseEvent) => {
+            if (currentInfoWindowRef.current) {
+              currentInfoWindowRef.current.close()
+            }
+            
+            const infoWindow = new google.maps.InfoWindow({
+              content: `
+                <div style="padding: 10px; max-width: 200px;">
+                  <h3 style="margin: 0 0 8px 0; color: #1f2937;">Landslide Risk Zone</h3>
+                  <p style="margin: 4px 0; font-size: 14px;">
+                    <strong>Risk Level:</strong> ${feature.properties.risk_level.toFixed(1)}/3.0
+                  </p>
+                  <p style="margin: 4px 0; font-size: 14px;">
+                    <strong>Category:</strong> ${feature.properties.risk_category}
+                  </p>
+                  <p style="margin: 4px 0; font-size: 12px; color: #6b7280;">
+                    ID: ${feature.properties.id}
+                  </p>
+                </div>
+              `,
+              position: event.latLng
+            })
+            
+            infoWindow.open(map)
+            currentInfoWindowRef.current = infoWindow
+          })
+          
+          newZones.push(polygon)
+        })
+        
+        setLandslideZones(newZones)
+        console.log(`✅ Added ${newZones.length} landslide zones to map`)
+      }
+    } catch (error) {
+      console.error('❌ Error fetching landslide data:', error)
+    } finally {
+      setIsLoadingLandslideData(false)
+    }
+  }
+
+  const clearMapData = () => {
+    console.log('🧹 Clearing all map data...')
+    
+    // Clear flood polygons
+    floodPolygons.forEach(polygon => polygon.setMap(null))
+    setFloodPolygons([])
+    
+    // Clear landslide zones
+    landslideZones.forEach(zone => zone.setMap(null))
+    setLandslideZones([])
+    
+    // Clear fire zones
+    fireZones.forEach(zone => zone.setMap(null))
+    setFireZones([])
+    
+    // Clear markers
+    landslideMarkers.forEach(marker => marker.setMap(null))
+    setLandslideMarkers([])
+    fireMarkers.forEach(marker => marker.setMap(null))
+    setFireMarkers([])
+    
+    // Close any open info windows
+    if (currentInfoWindowRef.current) {
+      currentInfoWindowRef.current.close()
+      currentInfoWindowRef.current = null
+    }
+    
+    console.log('✅ Map cleared successfully')
+  }
+
   const fetchWeatherData = async (lat: number, lng: number) => {
     setIsLoadingWeather(true)
     setWeatherError(null)
@@ -1373,6 +1568,25 @@ export function InteractiveMap() {
     }
   }, [map, selectedLayer]);
 
+  // Load data when map is ready and layer changes
+  useEffect(() => {
+    if (!map) return;
+    
+    console.log(`🔄 Loading data for layer: ${selectedLayer}`)
+    
+    if (selectedLayer === 'flood' || selectedLayer === 'all') {
+      fetchFloodData()
+    }
+    
+    if (selectedLayer === 'landslide' || selectedLayer === 'all') {
+      fetchLandslideData()
+    }
+    
+    if (selectedLayer === 'weather' || selectedLayer === 'all') {
+      fetchWeatherData(selectedLocation.lat, selectedLocation.lng)
+    }
+  }, [map, selectedLayer])
+
   // Animation loop for HEC-RAS style pulsing effect - Always active
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1480,19 +1694,57 @@ export function InteractiveMap() {
           
           {/* Fullscreen Layer Toolbar */}
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 w-full max-w-4xl px-4">
-            <div className="flex gap-3 overflow-x-auto p-2 bg-white/80 rounded-lg shadow-md backdrop-blur-sm">
-              {mapLayers.map((layer) => (
+            <div className="flex flex-col gap-3">
+              {/* Layer Buttons */}
+              <div className="flex gap-3 overflow-x-auto p-2 bg-white/80 rounded-lg shadow-md backdrop-blur-sm">
+                {mapLayers.map((layer) => (
+                  <Button
+                    key={layer.id}
+                    variant={selectedLayer === layer.id ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedLayer(layer.id)}
+                    className={`${selectedLayer === layer.id ? "bg-blue-600 text-white border-blue-600" : "border-blue-200 text-blue-700 hover:bg-blue-50"} min-w-fit px-4 py-2`}
+                  >
+                    <layer.icon className="w-4 h-4 mr-2" />
+                    <span className="whitespace-nowrap font-medium">{layer.label || 'All'}</span>
+                  </Button>
+                ))}
+              </div>
+              
+              {/* Load Data and Clear Map Buttons */}
+              <div className="flex justify-center gap-3">
                 <Button
-                  key={layer.id}
-                  variant={selectedLayer === layer.id ? "default" : "outline"}
+                  onClick={() => {
+                    if (selectedLayer === 'flood' || selectedLayer === 'all') {
+                      fetchFloodData()
+                    }
+                    if (selectedLayer === 'landslide' || selectedLayer === 'all') {
+                      fetchLandslideData()
+                    }
+                    if (selectedLayer === 'weather' || selectedLayer === 'all') {
+                      fetchWeatherData(selectedLocation.lat, selectedLocation.lng)
+                    }
+                  }}
+                  disabled={isLoadingFloodData || isLoadingLandslideData || isLoadingWeather}
+                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 shadow-lg disabled:opacity-50"
                   size="sm"
-                  onClick={() => setSelectedLayer(layer.id)}
-                  className={`${selectedLayer === layer.id ? "bg-blue-600 text-white border-blue-600" : "border-blue-200 text-blue-700 hover:bg-blue-50"} min-w-fit px-4 py-2`}
                 >
-                  <layer.icon className="w-4 h-4 mr-2" />
-                  <span className="whitespace-nowrap font-medium">{layer.label || 'All'}</span>
+                  <Cloud className="w-4 h-4 mr-2" />
+                  {isLoadingFloodData || isLoadingLandslideData || isLoadingWeather 
+                    ? 'Loading...' 
+                    : `Load ${selectedLayer === 'all' ? 'All Data' : selectedLayer.charAt(0).toUpperCase() + selectedLayer.slice(1) + ' Data'}`
+                  }
                 </Button>
-              ))}
+                
+                <Button
+                  onClick={clearMapData}
+                  className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 shadow-lg"
+                  size="sm"
+                >
+                  <Info className="w-4 h-4 mr-2" />
+                  Clear Map
+                </Button>
+              </div>
             </div>
           </div>
           
@@ -1654,6 +1906,41 @@ export function InteractiveMap() {
               {canScrollRight && (
                 <div className="absolute right-0 top-3 bottom-3 w-3 bg-gradient-to-l from-white via-white/80 to-transparent pointer-events-none z-10 transition-opacity duration-300"></div>
               )}
+            </div>
+            
+            {/* Load Data and Clear Map Buttons */}
+            <div className="flex justify-center gap-3 mt-3">
+              <Button
+                onClick={() => {
+                  if (selectedLayer === 'flood' || selectedLayer === 'all') {
+                    fetchFloodData()
+                  }
+                  if (selectedLayer === 'landslide' || selectedLayer === 'all') {
+                    fetchLandslideData()
+                  }
+                  if (selectedLayer === 'weather' || selectedLayer === 'all') {
+                    fetchWeatherData(selectedLocation.lat, selectedLocation.lng)
+                  }
+                }}
+                disabled={isLoadingFloodData || isLoadingLandslideData || isLoadingWeather}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 disabled:opacity-50"
+                size="sm"
+              >
+                <Cloud className="w-4 h-4 mr-2" />
+                {isLoadingFloodData || isLoadingLandslideData || isLoadingWeather 
+                  ? 'Loading...' 
+                  : `Load ${selectedLayer === 'all' ? 'All Data' : selectedLayer.charAt(0).toUpperCase() + selectedLayer.slice(1) + ' Data'}`
+                }
+              </Button>
+              
+              <Button
+                onClick={clearMapData}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2"
+                size="sm"
+              >
+                <Info className="w-4 h-4 mr-2" />
+                Clear Map
+              </Button>
             </div>
           </div>
         </CardHeader>
