@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
 from db.queries import (
     get_flood_data_by_risk,
     get_landslide_data_by_risk,
@@ -22,6 +23,7 @@ import traceback
 setup_database()
 
 app = Flask(__name__, static_folder='static')
+CORS(app)  # Enable CORS for all routes
 
 
 @app.route("/")
@@ -391,6 +393,9 @@ def get_landslide_data():
     db = None
     try:
         print("🏔️ Starting landslide data request...")
+        print(f"🔗 Request URL: {request.url}")
+        print(f"📋 Request headers: {dict(request.headers)}")
+        
         db = SessionLocal()
         
         # Get query parameters
@@ -402,8 +407,14 @@ def get_landslide_data():
         
         # Query landslide data
         print("🗄️ Querying landslide data from database...")
-        landslide_data = get_landslide_data_by_risk(db, min_risk=min_risk, max_risk=max_risk)
-        print(f"✅ Found {len(landslide_data)} landslide data records")
+        try:
+            landslide_data = get_landslide_data_by_risk(db, min_risk=min_risk, max_risk=max_risk)
+            print(f"✅ Found {len(landslide_data)} landslide data records")
+            print(f"📋 Data types: {[type(item) for item in landslide_data[:3]]}")
+        except Exception as query_error:
+            print(f"❌ Database query error: {query_error}")
+            print(f"📋 Query error traceback: {traceback.format_exc()}")
+            return jsonify({"error": f"Database query failed: {str(query_error)}"}), 500
         
         if not landslide_data:
             return jsonify({
@@ -455,7 +466,19 @@ def get_landslide_data():
             "total": len(features)
         }
         
-        return jsonify(geojson_response)
+        print(f"📦 Response structure: {list(geojson_response.keys())}")
+        print(f"📦 Features count in response: {len(geojson_response['features'])}")
+        print(f"📦 Response type: {type(geojson_response)}")
+        
+        try:
+            response = jsonify(geojson_response)
+            print(f"✅ JSON response created successfully")
+            print(f"📦 Response content length: {len(response.get_data())}")
+            return response
+        except Exception as json_error:
+            print(f"❌ JSON serialization error: {json_error}")
+            print(f"📋 JSON error traceback: {traceback.format_exc()}")
+            return jsonify({"error": f"JSON serialization failed: {str(json_error)}"}), 500
         
     except Exception as e:
         print(f"❌ Error in get_landslide_data: {e}")
@@ -466,6 +489,47 @@ def get_landslide_data():
         if db:
             db.close()
 
+
+@app.route("/api/debug/landslide", methods=["GET"])
+def debug_landslide():
+    """Debug endpoint to check landslide data"""
+    db = None
+    try:
+        print("🔍 Debug landslide data...")
+        db = SessionLocal()
+        
+        # Check if table exists
+        with engine.connect() as conn:
+            try:
+                result = conn.execute(text("SELECT COUNT(*) FROM landslide_data"))
+                total_count = result.fetchone()[0]
+                print(f"📈 Total landslide records: {total_count}")
+                
+                if total_count > 0:
+                    # Get sample data
+                    sample = conn.execute(text("SELECT id, risk_level FROM landslide_data LIMIT 3"))
+                    samples = sample.fetchall()
+                    print(f"📋 Sample records: {samples}")
+                
+                return jsonify({
+                    "table_exists": True,
+                    "total_records": total_count,
+                    "sample_records": [{"id": row[0], "risk_level": float(row[1])} for row in samples] if total_count > 0 else []
+                })
+                
+            except Exception as e:
+                print(f"❌ Table check error: {e}")
+                return jsonify({
+                    "table_exists": False,
+                    "error": str(e)
+                })
+                
+    except Exception as e:
+        print(f"❌ Debug error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if db:
+            db.close()
 
 @app.route("/api/landslide-data/stats", methods=["GET"])
 def get_landslide_stats():

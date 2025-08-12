@@ -47,17 +47,59 @@ NEXT_PUBLIC_BACKEND_BASE_URL=http://localhost:5000
 ## Troubleshooting
 
 ### Backend Connection Issues
-1. Ensure the Python backend is running: `cd backend && python app.py`
-2. Check the backend URL in `.env.local`
-3. Verify the backend endpoints are accessible: `curl http://localhost:5000/api/flood-data`
+1. **Install CORS dependency**: `cd backend && pip install flask-cors`
+2. **Ensure the Python backend is running**: `cd backend && python app.py`
+3. **Check the backend URL in `.env.local`**
+4. **Test backend connectivity**: 
+   ```bash
+   cd backend && python test_api.py
+   ```
+5. **Verify the backend endpoints are accessible**: 
+   ```bash
+   curl http://localhost:5000/api/flood-data
+   ```
 
 ### No Data Displayed
-1. Check if data exists in the database
-2. Run data ingestion: `cd backend && python run_ingestions.py flood datasets/your_flood_data.shp`
-3. Check browser console for error messages
+1. **Check if data exists in the database**:
+   ```bash
+   cd backend && python -c "
+   from db.base import SessionLocal
+   from db.models import FloodData, LandslideData
+   db = SessionLocal()
+   print(f'Flood records: {db.query(FloodData).count()}')
+   print(f'Landslide records: {db.query(LandslideData).count()}')
+   db.close()
+   "
+   ```
+2. **Run data ingestion if needed**: 
+   ```bash
+   cd backend && python run_ingestions.py flood datasets/your_flood_data.shp
+   cd backend && python run_ingestions.py landslide datasets/your_landslide_data.shp
+   ```
+3. **Check browser console for error messages** (F12 → Console)
+4. **Use the "Test Backend" button** in the map interface
 
 ### CORS Issues
-If you see CORS errors, ensure the backend has CORS configured properly.
+- The backend now includes CORS support with `flask-cors`
+- If you still see CORS errors, restart the backend after installing flask-cors
+
+### Debugging Steps
+1. **Check backend logs** for any errors when making requests
+2. **Use browser Network tab** (F12 → Network) to see the actual HTTP requests
+3. **Test with curl** to verify the API works:
+   ```bash
+   curl -v http://localhost:5000/api/flood-data?limit=1
+   ```
+4. **Check environment variables** are set correctly
+5. **Use the "Test Backend" button** in the map interface for detailed logging
+6. **Check browser console** for coordinate parsing errors and validation messages
+
+### Coordinate Parsing Issues
+If you see "InvalidValueError: not a LatLng or LatLngLiteral" errors:
+- The frontend now includes robust coordinate validation
+- Invalid coordinates are logged and skipped
+- Check the browser console for detailed coordinate parsing logs
+- Ensure the backend returns valid GeoJSON with finite coordinate values
 
 ## Data Format
 
