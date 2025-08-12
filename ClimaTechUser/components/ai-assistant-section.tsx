@@ -19,7 +19,7 @@ import {
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
-export default function AIAssistantSection() {
+export default function AIAssistantSection({ onOpenChatOnMap }: { onOpenChatOnMap: () => void }) {
   const [selectedFeature, setSelectedFeature] = useState(0)
   const [activeTab, setActiveTab] = useState("overview")
 
@@ -412,8 +412,8 @@ export default function AIAssistantSection() {
   }
 
   return (
-    <div className="min-h-full bg-gradient-to-br from-blue-50 via-white to-green-50 overflow-y-auto">
-      <div className="max-w-7xl mx-auto p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
+      <div className="max-w-7xl mx-auto p-6 pb-24">
         {/* Header */}
         <div className="text-center mb-12">
           <div className="flex justify-center mb-6">
@@ -467,7 +467,7 @@ export default function AIAssistantSection() {
                 weather, or get travel recommendations.
               </p>
               <div className="flex items-center space-x-4">
-                <Button className="bg-white text-blue-600 hover:bg-gray-100 font-semibold">
+                <Button className="bg-white text-blue-600 hover:bg-gray-100 font-semibold" onClick={onOpenChatOnMap}>
                   Open Chat Assistant
                   <MessageCircle className="ml-2 h-4 w-4" />
                 </Button>

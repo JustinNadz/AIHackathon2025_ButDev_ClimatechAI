@@ -1,103 +1,450 @@
 "use client"
 
 import type React from "react"
-
-import { MapPin, Navigation, Compass } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { Loader } from "@googlemaps/js-api-loader"
+import WeatherLegend from "./weather-legend"
+import { generateWeatherData, WeatherData } from "@/types/weather"
+import { MapPin, Navigation, Thermometer, Droplets, Wind, ChevronDown, ChevronUp } from "lucide-react"
+import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 
 interface MapComponentProps {
   onLocationSelect: (location: { lat: number; lng: number }) => void
   selectedLocation: { lat: number; lng: number } | null
 }
 
+type City = {
+  name: string
+  lat: number
+  lng: number
+}
+
+interface UserLocationWeather {
+  location: string
+  weather: WeatherData
+  forecast: WeatherData[]
+}
+
+const PHILIPPINE_CITIES: City[] = [
+  { name: "Manila", lat: 14.5995, lng: 120.9842 },
+  { name: "Quezon City", lat: 14.6760, lng: 121.0437 },
+  { name: "Cebu City", lat: 10.3157, lng: 123.8854 },
+  { name: "Davao City", lat: 7.1907, lng: 125.4553 },
+  { name: "Iloilo City", lat: 10.7202, lng: 122.5621 },
+  { name: "Baguio", lat: 16.4023, lng: 120.5960 },
+  { name: "Zamboanga City", lat: 6.9214, lng: 122.0790 },
+  { name: "Cagayan de Oro", lat: 8.4542, lng: 124.6319 },
+  { name: "General Santos", lat: 6.1164, lng: 125.1716 },
+]
+
 export default function MapComponent({ onLocationSelect, selectedLocation }: MapComponentProps) {
-  const handleMapClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+  const mapContainerRef = useRef<HTMLDivElement | null>(null)
+  const mapRef = useRef<google.maps.Map | null>(null)
+  const googleRef = useRef<typeof google | null>(null)
+  const userMarkerRef = useRef<google.maps.Marker | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [userLocationWeather, setUserLocationWeather] = useState<UserLocationWeather | null>(null)
+  const [locationError, setLocationError] = useState<string | null>(null)
+  const [isWeatherExpanded, setIsWeatherExpanded] = useState(false)
 
-    // Convert click position to mock coordinates
-    const lat = 40.7128 + (rect.height / 2 - y) * 0.0001
-    const lng = -74.006 + (x - rect.width / 2) * 0.0001
+  const cityMarkersRef = useRef<Record<string, google.maps.Marker>>({})
+  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null)
 
-    onLocationSelect({ lat, lng })
+  // Get user's current location
+  const getCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation is not supported by this browser")
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const location = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        }
+        setUserLocation(location)
+        setLocationError(null)
+
+        // Generate weather data for user location
+        const currentWeather = generateWeatherData()
+        const forecast = Array.from({ length: 5 }, () => generateWeatherData())
+        
+        // Reverse geocode to get location name
+        let locationName = `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`
+        
+        setUserLocationWeather({
+          location: locationName,
+          weather: currentWeather,
+          forecast
+        })
+
+        // Center map on user location
+        if (mapRef.current) {
+          mapRef.current.panTo(location)
+          mapRef.current.setZoom(12)
+        }
+
+        // Add user location marker
+        if (googleRef.current && mapRef.current) {
+          if (userMarkerRef.current) {
+            userMarkerRef.current.setMap(null)
+          }
+          
+          userMarkerRef.current = new googleRef.current.maps.Marker({
+            map: mapRef.current,
+            position: location,
+            icon: {
+              url: currentWeather.icon,
+              scaledSize: new googleRef.current.maps.Size(60, 60),
+              anchor: new googleRef.current.maps.Point(30, 30),
+            },
+            title: "Your Location",
+            animation: googleRef.current.maps.Animation.DROP,
+          })
+
+          // Add click listener for user marker
+          userMarkerRef.current.addListener("click", () => {
+            if (!infoWindowRef.current) return
+            const content = `
+              <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; min-width: 200px;">
+                <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                  <img src="${currentWeather.icon}" alt="${currentWeather.condition}" 
+                       style="width: 32px; height: 32px; margin-right: 8px; object-fit: contain;">
+                  <div>
+                    <div style="font-weight: 600; font-size: 16px; color: #1f2937;">Your Location</div>
+                    <div style="font-size: 12px; color: #6b7280;">${currentWeather.condition}</div>
+                  </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; color: #374151;">
+                  <div style="display: flex; align-items: center;">
+                    <span style="font-weight: 500;">Temperature:</span>
+                    <span style="margin-left: 4px; font-weight: 600; color: #dc2626;">${currentWeather.temperature}°C</span>
+                  </div>
+                  <div style="display: flex; align-items: center;">
+                    <span style="font-weight: 500;">Humidity:</span>
+                    <span style="margin-left: 4px; color: #2563eb;">${currentWeather.humidity}%</span>
+                  </div>
+                  <div style="display: flex; align-items: center;">
+                    <span style="font-weight: 500;">Wind:</span>
+                    <span style="margin-left: 4px; color: #059669;">${currentWeather.windSpeed} km/h</span>
+                  </div>
+                </div>
+              </div>
+            `
+            infoWindowRef.current.setContent(content)
+            infoWindowRef.current.open({ anchor: userMarkerRef.current, map: mapRef.current })
+          })
+        }
+
+        onLocationSelect(location)
+      },
+      (error) => {
+        switch(error.code) {
+          case error.PERMISSION_DENIED:
+            setLocationError("Location access denied by user")
+            break
+          case error.POSITION_UNAVAILABLE:
+            setLocationError("Location information unavailable")
+            break
+          case error.TIMEOUT:
+            setLocationError("Location request timed out")
+            break
+          default:
+            setLocationError("An unknown error occurred")
+            break
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000 // 5 minutes
+      }
+    )
+  }
+
+  // Initialize the Google Map once
+  useEffect(() => {
+    let isMounted = true
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY || ""
+
+    if (!apiKey) {
+      setLoadError("Missing GOOGLE_MAPS_API_KEY")
+      return
+    }
+
+    if (!mapContainerRef.current) return
+
+    const loader = new Loader({
+      apiKey,
+      libraries: ["places"],
+    })
+
+    loader
+      .load()
+      .then((google) => {
+        if (!isMounted || !mapContainerRef.current) return
+        googleRef.current = google
+
+        // Focus on the Philippines
+        const philippinesCenter = { lat: 12.8797, lng: 121.7740 }
+
+        mapRef.current = new google.maps.Map(mapContainerRef.current, {
+          center: philippinesCenter,
+          zoom: 6,
+          mapId: "DEMO_MAP_ID",
+          minZoom: 5,
+          maxZoom: 16,
+        })
+
+        infoWindowRef.current = new google.maps.InfoWindow()
+
+        // Add city markers with weather data
+        addCityWeatherMarkers()
+
+        // Automatically get user location on load
+        getCurrentLocation()
+      })
+      .catch((err) => {
+        console.error("Failed to load Google Maps:", err)
+        setLoadError("Failed to load Google Maps")
+      })
+
+    async function addCityWeatherMarkers() {
+      const g = googleRef.current
+      const map = mapRef.current
+      if (!g || !map) return
+
+      for (const city of PHILIPPINE_CITIES) {
+        try {
+          const res = await fetch(`/api/google-weather?lat=${city.lat}&lng=${city.lng}`)
+          const data = await res.json()
+
+          // Create custom marker with weather icon
+          const marker = new g.maps.Marker({
+            map,
+            position: { lat: city.lat, lng: city.lng },
+            icon: {
+              url: data.icon || "/placeholder.svg",
+              scaledSize: new g.maps.Size(50, 50),
+              anchor: new g.maps.Point(25, 25),
+            },
+            title: city.name,
+          })
+
+          const content = `
+            <div style="font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; min-width: 200px;">
+              <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                <img src="${data.icon || "/placeholder.svg"}" alt="${data.condition || data.description}" 
+                     style="width: 32px; height: 32px; margin-right: 8px; object-fit: contain;">
+                <div>
+                  <div style="font-weight: 600; font-size: 16px; color: #1f2937;">${city.name}</div>
+                  <div style="font-size: 12px; color: #6b7280;">${data.condition || data.description}</div>
+                </div>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; color: #374151;">
+                <div style="display: flex; align-items: center;">
+                  <span style="font-weight: 500;">Temperature:</span>
+                  <span style="margin-left: 4px; font-weight: 600; color: #dc2626;">${data.temperatureC != null ? `${data.temperatureC}°C` : "N/A"}</span>
+                </div>
+                <div style="display: flex; align-items: center;">
+                  <span style="font-weight: 500;">Humidity:</span>
+                  <span style="margin-left: 4px; color: #2563eb;">${data.humidity != null ? `${data.humidity}%` : "N/A"}</span>
+                </div>
+                <div style="display: flex; align-items: center;">
+                  <span style="font-weight: 500;">Wind:</span>
+                  <span style="margin-left: 4px; color: #059669;">${data.windSpeed != null ? `${data.windSpeed} km/h` : "N/A"}</span>
+                </div>
+              </div>
+            </div>
+          `
+
+          marker.addListener("click", () => {
+            if (!infoWindowRef.current) return
+            infoWindowRef.current.setContent(content)
+            infoWindowRef.current.open({ anchor: marker, map })
+          })
+
+          cityMarkersRef.current[city.name] = marker
+        } catch (e) {
+          console.warn("Failed to load weather for", city.name, e)
+        }
+      }
+    }
+
+    return () => {
+      isMounted = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  if (loadError) {
+    return (
+      <div className="w-full h-full flex items-center justify-center text-sm text-red-600">
+        {loadError}
+      </div>
+    )
   }
 
   return (
-    <div className="relative w-full h-full bg-gradient-to-br from-blue-50 via-white to-green-50 overflow-hidden">
-      {/* Map Placeholder */}
-      <div
-        className="w-full h-full cursor-crosshair relative flex items-center justify-center"
-        onClick={handleMapClick}
-      >
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-10">
-          <div
-            className="w-full h-full"
-            style={{
-              backgroundImage: `
-              radial-gradient(circle at 25% 25%, #3b82f6 2px, transparent 2px),
-              radial-gradient(circle at 75% 75%, #10b981 2px, transparent 2px)
-            `,
-              backgroundSize: "50px 50px",
+    <div className="relative w-full h-full">
+      <div ref={mapContainerRef} className="absolute inset-0" />
+      
+      {/* Map Controls */}
+      <div className="absolute top-4 right-4 flex flex-col space-y-2">
+        {/* Map Type Selector */}
+        <div className="flex space-x-2">
+          <button
+            onClick={() => {
+              if (mapRef.current) {
+                mapRef.current.setMapTypeId("roadmap")
+              }
             }}
-          ></div>
+            className="bg-white/90 text-gray-700 border border-gray-300 hover:bg-gray-50 shadow-lg backdrop-blur-sm px-3 py-1 text-sm rounded"
+          >
+            Map
+          </button>
+          <button
+            onClick={() => {
+              if (mapRef.current) {
+                mapRef.current.setMapTypeId("satellite")
+              }
+            }}
+            className="bg-white/90 text-gray-700 border border-gray-300 hover:bg-gray-50 shadow-lg backdrop-blur-sm px-3 py-1 text-sm rounded"
+          >
+            Satellite
+          </button>
         </div>
+        
+        {/* Weather Legend */}
+        <WeatherLegend />
+      </div>
 
-        {/* Map Placeholder Content */}
-        <div className="text-center z-10">
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-lg border border-blue-100">
-            <div className="flex justify-center mb-4">
-              <div className="bg-gradient-to-r from-blue-600 to-green-500 p-4 rounded-full">
-                <Compass className="h-12 w-12 text-white" />
-              </div>
-            </div>
-            <h3 className="text-2xl font-bold text-gray-800 mb-2">Interactive Map Area</h3>
-            <p className="text-gray-600 mb-4 max-w-md">
-              This is where your Google Maps will be integrated. Click anywhere to simulate location selection.
-            </p>
-            <div className="flex items-center justify-center space-x-4 text-sm text-gray-500">
-              <div className="flex items-center">
-                <MapPin className="h-4 w-4 mr-1 text-blue-600" />
-                Click to select location
-              </div>
-              <div className="flex items-center">
-                <Navigation className="h-4 w-4 mr-1 text-green-600" />
-                AI-powered assistance
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* User Location Weather Container */}
+      <div className="absolute top-2 left-2 flex flex-col space-y-3">
+        {/* Location Access Button */}
+        {!userLocation && (
+          <Card className="p-3 bg-white/95 backdrop-blur-md shadow-lg border border-gray-200">
+            <Button
+              onClick={getCurrentLocation}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-sm"
+              size="sm"
+            >
+              <Navigation className="h-4 w-4 mr-2" />
+              Get My Location
+            </Button>
+            {locationError && (
+              <p className="text-xs text-red-600 mt-2">{locationError}</p>
+            )}
+          </Card>
+        )}
 
-        {/* Selected Location Indicator */}
-        {selectedLocation && (
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-            <div className="relative">
-              <MapPin className="h-8 w-8 text-red-500 drop-shadow-lg animate-bounce" />
-              <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-white rounded-lg px-3 py-1 shadow-lg text-xs font-medium">
-                Selected Location
+        {/* Minimalist Weather Container with Dropdown */}
+        {userLocationWeather && (
+          <Card className="w-72 bg-white/95 backdrop-blur-md shadow-lg border border-gray-200 overflow-hidden">
+            {/* Compact Header - Always Visible */}
+            <div 
+              className="p-3 bg-gradient-to-r from-blue-500 to-green-500 text-white cursor-pointer hover:from-blue-600 hover:to-green-600 transition-all"
+              onClick={() => setIsWeatherExpanded(!isWeatherExpanded)}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <MapPin className="h-4 w-4" />
+                  <span className="text-sm font-medium truncate">{userLocationWeather.location}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-1">
+                    <img
+                      src={userLocationWeather.weather.icon}
+                      alt={userLocationWeather.weather.condition}
+                      className="w-6 h-6 object-contain"
+                    />
+                    <span className="text-sm font-semibold">
+                      {userLocationWeather.weather.temperature}°C
+                    </span>
+                  </div>
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      getCurrentLocation()
+                    }}
+                    variant="ghost"
+                    size="sm"
+                    className="text-white hover:bg-white/20 h-6 w-6 p-0"
+                  >
+                    <Navigation className="h-3 w-3" />
+                  </Button>
+                  {isWeatherExpanded ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+
+            {/* Expandable Weather Details */}
+            {isWeatherExpanded && (
+              <div className="animate-in slide-in-from-top-2 duration-300">
+                {/* Current Weather Details */}
+                <div className="p-3 border-b border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <img
+                        src={userLocationWeather.weather.icon}
+                        alt={userLocationWeather.weather.condition}
+                        className="w-12 h-12 object-contain"
+                      />
+                      <div>
+                        <div className="text-2xl font-bold text-gray-800">
+                          {userLocationWeather.weather.temperature}°C
+                        </div>
+                        <div className="text-xs text-gray-600 truncate max-w-[120px]">
+                          {userLocationWeather.weather.condition}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="flex items-center text-xs text-gray-600">
+                        <Droplets className="h-3 w-3 mr-1" />
+                        {userLocationWeather.weather.humidity}%
+                      </div>
+                      <div className="flex items-center text-xs text-gray-600 mt-1">
+                        <Wind className="h-3 w-3 mr-1" />
+                        {userLocationWeather.weather.windSpeed} km/h
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5-Day Forecast */}
+                <div className="p-3">
+                  <div className="text-xs font-medium text-gray-700 mb-2">5-Day Forecast</div>
+                  <div className="grid grid-cols-5 gap-2">
+                    {userLocationWeather.forecast.map((day, index) => (
+                      <div key={index} className="text-center">
+                        <div className="text-xs text-gray-600 mb-1">
+                          {index === 0 ? 'Today' : `+${index}d`}
+                        </div>
+                        <img
+                          src={day.icon}
+                          alt={day.condition}
+                          className="w-6 h-6 object-contain mx-auto mb-1"
+                        />
+                        <div className="text-xs font-medium text-gray-800">
+                          {day.temperature}°
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </Card>
         )}
       </div>
-
-      {/* Map Controls Placeholder */}
-      <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-2">
-        <div className="text-xs text-gray-600 font-medium">Map Controls</div>
-        <div className="mt-2 space-y-1">
-          <div className="w-8 h-8 bg-gray-100 rounded border"></div>
-          <div className="w-8 h-8 bg-gray-100 rounded border"></div>
-        </div>
-      </div>
-
-      {/* Coordinates Display */}
-      {selectedLocation && (
-        <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg p-3">
-          <div className="text-xs font-semibold text-gray-700 mb-1">Selected Coordinates</div>
-          <div className="text-xs text-gray-600">Lat: {selectedLocation.lat.toFixed(6)}</div>
-          <div className="text-xs text-gray-600">Lng: {selectedLocation.lng.toFixed(6)}</div>
-        </div>
-      )}
     </div>
   )
 }
