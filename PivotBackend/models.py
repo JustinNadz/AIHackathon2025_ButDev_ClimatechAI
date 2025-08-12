@@ -21,8 +21,14 @@ class FloodData(Base):
     __tablename__ = "flood_data"
     
     id = Column(Integer, primary_key=True, index=True)
+    geometry = Column(Geometry('MULTIPOLYGON', srid=4326), nullable=False)
+    risk_value = Column(String(50))
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
 
 class LandslideData(Base):
     __tablename__ = "landslide_data"
     
     id = Column(Integer, primary_key=True, index=True)
+    geometry = Column(Geometry('MULTIPOLYGON', srid=4326), nullable=False)
+    risk_value = Column(String(50))
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())

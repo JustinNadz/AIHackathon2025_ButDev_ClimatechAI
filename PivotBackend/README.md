@@ -10,6 +10,7 @@ A simple FastAPI backend for the Pivot Frontend application with PostgreSQL/Post
 - **CORS Support**: Configured for React frontend
 - **Health Check**: Basic health monitoring endpoints
 - **Table Management**: Create, drop, and reset database tables
+- **Shapefile Import**: Import flood and landslide data from shapefiles with geometry simplification
 - **Environment Configuration**: Support for environment variables
 
 ## Database Models
@@ -71,6 +72,87 @@ A simple FastAPI backend for the Pivot Frontend application with PostgreSQL/Post
    ```bash
    uvicorn main:app --reload --host 0.0.0.0 --port 8000
    ```
+
+## Shapefile Import
+
+Import flood and landslide data from shapefiles with automatic geometry simplification.
+
+### Requirements
+
+Your shapefile should have:
+- A risk column with values 1-3 (1=low, 2=medium, 3=high)
+- A geometry column with multipolygons
+
+### Usage
+
+```bash
+# Import flood data only
+python import_shapefile.py --type flood --flood-file path/to/flood.shp
+
+# Import landslide data only
+python import_shapefile.py --type landslide --landslide-file path/to/landslide.shp
+
+# Import both flood and landslide data
+python import_shapefile.py --type both --flood-file path/to/flood.shp --landslide-file path/to/landslide.shp
+
+# Custom options
+python import_shapefile.py \
+  --type both \
+  --flood-file flood.shp \
+  --landslide-file landslide.shp \
+  --risk-column risk_level \
+  --tolerance 0.0005 \
+  --batch-size 50
+```
+
+### Options
+
+- `--type`: Type of data to import (`flood`, `landslide`, or `both`)
+- `--flood-file`: Path to flood shapefile
+- `--landslide-file`: Path to landslide shapefile
+- `--risk-column`: Name of the risk column (default: `risk`)
+- `--tolerance`: Geometry simplification tolerance (default: `0.0001`)
+  - Higher values = more simplified geometry
+  - Lower values = more detailed geometry
+- `--batch-size`: Number of records to commit at once (default: `100`)
+
+### Features
+
+- **Automatic CRS conversion** to WGS84 (EPSG:4326)
+- **Geometry simplification** to reduce complexity
+- **Batch processing** for large datasets
+- **Error handling** with detailed logging
+- **Progress reporting** during import
+- **Automatic area calculation** in square meters
+
+### Example Output
+
+```
+🚀 Starting shapefile import...
+   Type: both
+   Risk column: risk
+   Tolerance: 0.0001
+   Batch size: 100
+
+Importing flood data from: flood.shp
+Loaded 1500 flood records
+Imported 100 flood records...
+Imported 200 flood records...
+✅ Flood data import completed!
+   Imported: 1500 records
+   Errors: 0 records
+
+Importing landslide data from: landslide.shp
+Loaded 800 landslide records
+Imported 100 landslide records...
+✅ Landslide data import completed!
+   Imported: 800 records
+   Errors: 0 records
+
+🎉 Import completed!
+   Total imported: 2300 records
+   Total errors: 0 records
+```
 
 ## API Endpoints
 
@@ -136,6 +218,7 @@ PivotBackend/
 ├── models.py            # SQLAlchemy models
 ├── setup_db.py          # Database setup script
 ├── setup_tables.py      # Table setup script
+├── import_shapefile.py  # Shapefile import script
 ├── requirements.txt     # Python dependencies
 ├── env.example         # Environment variables template
 └── README.md           # This file
@@ -149,3 +232,5 @@ PivotBackend/
 - Tables are created automatically when the server starts
 - Use the table management endpoints or scripts to manage database schema
 - The database setup script will create the database and enable PostGIS extension
+- Shapefile import includes automatic geometry simplification for large multipolygons
+- Risk values (1-3) are automatically converted to severity levels (low/medium/high)
