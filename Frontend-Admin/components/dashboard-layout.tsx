@@ -32,7 +32,6 @@ import {
   User,
   Shield,
   ChevronDown,
-  Brain,
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
@@ -45,7 +44,6 @@ const menuItems = [
   { title: "Energy Management", icon: Zap, url: "/dashboard/energy" },
   { title: "Reports & Logs", icon: FileText, url: "/dashboard/reports" },
   { title: "System and User Management", icon: Settings, url: "/dashboard/admin" },
-  { title: "Gemma AI Testing", icon: Brain, url: "/dashboard/gemma-test" },
   { title: "Help & Support", icon: HelpCircle, url: "/dashboard/help" },
 ]
 
