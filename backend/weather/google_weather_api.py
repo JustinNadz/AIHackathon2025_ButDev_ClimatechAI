@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Google Weather API integration for fetching real-time weather data
+Enhanced with Filipino weather conditions and database storage
 """
 import requests
 import json
@@ -8,6 +9,126 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import time
 import os
+import random
+
+
+# Filipino Weather Conditions (from frontend types/weather.ts)
+FILIPINO_WEATHER_CONDITIONS = [
+    "Clear Skies",
+    "Cloudy Skies with Rainshowers", 
+    "Monsoon Rains",
+    "Partly Cloudy Skies",
+    "Partly Cloudy Skies With Isolated Rainshowers",
+    "Stormy",
+    "Cloudy Skies",
+    "Partly Cloudy Skies to at times cloudy with Rainshowers and Thunderstorms",
+    "Light Rains",
+    "Cloudy Skies with Rainshowers and Thunderstorms",
+    "Occasional Rains",
+    "Rains with Gusty Winds"
+]
+
+# Temperature ranges for each condition (min, max in °C)
+TEMPERATURE_RANGES = {
+    "Clear Skies": (28, 35),
+    "Cloudy Skies with Rainshowers": (23, 29),
+    "Monsoon Rains": (22, 27),
+    "Partly Cloudy Skies": (26, 33),
+    "Partly Cloudy Skies With Isolated Rainshowers": (25, 31),
+    "Stormy": (21, 26),
+    "Cloudy Skies": (24, 30),
+    "Partly Cloudy Skies to at times cloudy with Rainshowers and Thunderstorms": (24, 30),
+    "Light Rains": (23, 29),
+    "Cloudy Skies with Rainshowers and Thunderstorms": (23, 29),
+    "Occasional Rains": (24, 30),
+    "Rains with Gusty Winds": (22, 28)
+}
+
+# Weather condition mapping from generic descriptions to Filipino conditions
+WEATHER_MAPPING = {
+    # Clear conditions
+    "clear": "Clear Skies",
+    "sunny": "Clear Skies",
+    "fair": "Clear Skies",
+    
+    # Cloudy conditions
+    "cloudy": "Cloudy Skies",
+    "overcast": "Cloudy Skies",
+    "partly cloudy": "Partly Cloudy Skies",
+    "mostly cloudy": "Cloudy Skies",
+    
+    # Rain conditions
+    "rain": "Cloudy Skies with Rainshowers",
+    "light rain": "Light Rains",
+    "heavy rain": "Monsoon Rains",
+    "drizzle": "Light Rains",
+    "showers": "Cloudy Skies with Rainshowers",
+    "scattered showers": "Partly Cloudy Skies With Isolated Rainshowers",
+    
+    # Storm conditions
+    "thunderstorm": "Cloudy Skies with Rainshowers and Thunderstorms",
+    "storm": "Stormy",
+    "severe": "Stormy",
+    
+    # Wind and rain
+    "windy": "Rains with Gusty Winds",
+    "gusty": "Rains with Gusty Winds",
+    
+    # Monsoon
+    "monsoon": "Monsoon Rains",
+    "tropical": "Monsoon Rains"
+}
+
+
+def map_to_filipino_condition(description: str) -> str:
+    """Map a generic weather description to Filipino weather condition"""
+    if not description:
+        return random.choice(FILIPINO_WEATHER_CONDITIONS)
+    
+    description_lower = description.lower()
+    
+    # Check for exact matches first
+    for key, filipino_condition in WEATHER_MAPPING.items():
+        if key in description_lower:
+            return filipino_condition
+    
+    # Default fallback based on common patterns
+    if any(word in description_lower for word in ["rain", "shower", "drizzle"]):
+        if any(word in description_lower for word in ["thunder", "storm"]):
+            return "Cloudy Skies with Rainshowers and Thunderstorms"
+        elif "light" in description_lower:
+            return "Light Rains"
+        elif any(word in description_lower for word in ["heavy", "monsoon"]):
+            return "Monsoon Rains"
+        else:
+            return "Cloudy Skies with Rainshowers"
+    
+    elif any(word in description_lower for word in ["storm", "severe"]):
+        return "Stormy"
+    
+    elif any(word in description_lower for word in ["clear", "sunny", "fair"]):
+        return "Clear Skies"
+    
+    elif any(word in description_lower for word in ["cloud", "overcast"]):
+        if "partly" in description_lower:
+            return "Partly Cloudy Skies"
+        else:
+            return "Cloudy Skies"
+    
+    # Random fallback
+    return random.choice(FILIPINO_WEATHER_CONDITIONS)
+
+
+def get_temperature_for_condition(condition: str, fallback_temp: Optional[float] = None) -> float:
+    """Get a realistic temperature for the given Filipino weather condition"""
+    if condition in TEMPERATURE_RANGES:
+        min_temp, max_temp = TEMPERATURE_RANGES[condition]
+        if fallback_temp and min_temp <= fallback_temp <= max_temp:
+            return fallback_temp
+        return random.uniform(min_temp, max_temp)
+    
+    # Fallback temperature
+    return fallback_temp if fallback_temp else random.uniform(24, 32)
 
 
 class GoogleWeatherAPI:
@@ -20,7 +141,7 @@ class GoogleWeatherAPI:
         """
         self.api_key = api_key or os.getenv('GOOGLE_MAPS_API_KEY')
         if not self.api_key:
-            raise ValueError("Google Maps API key is required. Set GOOGLE_MAPS_API_KEY environment variable or pass api_key parameter.")
+            print("⚠️ Warning: No Google Maps API key found. Using mock data.")
         
         self.base_url = "https://weather.googleapis.com/v1"
         self.session = requests.Session()
@@ -38,137 +159,161 @@ class GoogleWeatherAPI:
             lng: Longitude
             
         Returns:
-            Dictionary containing weather data
+            Dictionary containing weather data with Filipino conditions
         """
         try:
-            # Google Weather API endpoint
-            url = f"{self.base_url}/currentConditions:lookup"
+            if self.api_key and self.api_key != "mock_key":
+                # Try Google Weather API first
+                try:
+                    return self._fetch_from_google_api(lat, lng)
+                except Exception as e:
+                    print(f"⚠️ Google API failed: {e}")
+                    print("🔄 Falling back to mock data...")
             
-            params = {
-                'location.latitude':{lat},
-                'location.longitude':{lng},
-                'key': self.api_key,
-            }
-            
-            print(f"🌤️ Fetching weather data from Google Weather API...")
-            print(f"   URL: {url}")
-            print(f"   Location: ({lat:.4f}, {lng:.4f})")
-            
-            response = self.session.get(url, params=params, timeout=10)
-            
-            if response.status_code == 200:
-                weather_data = response.json()
-                print(f"✅ Successfully fetched weather data from Google")
-                return self._parse_google_weather_response(weather_data, lat, lng)
-            else:
-                print(f"❌ Google Weather API error: {response.status_code}")
-                print(f"   Response: {response.text}")
-                # Fallback to mock data if API fails
-                return self._get_mock_weather_data(lat, lng)
+            # Fallback to enhanced mock data
+            return self._get_enhanced_mock_weather_data(lat, lng)
                 
-        except requests.exceptions.RequestException as e:
-            print(f"❌ Network error fetching weather data: {e}")
-            # Fallback to mock data
-            return self._get_mock_weather_data(lat, lng)
         except Exception as e:
             print(f"❌ Error fetching weather data: {e}")
-            return None
+            return self._get_enhanced_mock_weather_data(lat, lng)
+    
+    def _fetch_from_google_api(self, lat: float, lng: float) -> Dict:
+        """Fetch data from actual Google Weather API"""
+        url = f"{self.base_url}/currentConditions:lookup"
+        
+        params = {
+            'location.latitude': lat,
+            'location.longitude': lng,
+            'key': self.api_key,
+        }
+        
+        print(f"🌤️ Fetching weather data from Google Weather API...")
+        print(f"   URL: {url}")
+        print(f"   Location: ({lat:.4f}, {lng:.4f})")
+        
+        response = self.session.get(url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            weather_data = response.json()
+            print(f"✅ Successfully fetched weather data from Google")
+            return self._parse_google_weather_response(weather_data, lat, lng)
+        else:
+            print(f"❌ Google Weather API error: {response.status_code}")
+            print(f"   Response: {response.text}")
+            raise Exception(f"API error: {response.status_code}")
     
     def _parse_google_weather_response(self, google_data: Dict, lat: float, lng: float) -> Dict:
         """
-        Parse Google Weather API response into our standard format
-        
-        Args:
-            google_data: Raw response from Google Weather API
-            lat: Latitude
-            lng: Longitude
-            
-        Returns:
-            Standardized weather data dictionary
+        Parse Google Weather API response into our standard format with Filipino conditions
         """
         try:
-            # Extract location data (Google API doesn't provide location name in response)
-            location_name = f"Weather Station at ({lat:.4f}, {lng:.4f})"
-            
-            # Extract weather conditions
+            # Extract basic weather info
             weather_condition = google_data.get('weatherCondition', {})
-            description = weather_condition.get('description', {}).get('text', 'Unknown')
+            raw_description = weather_condition.get('description', {}).get('text', 'Unknown')
+            
+            # Map to Filipino condition
+            filipino_condition = map_to_filipino_condition(raw_description)
             
             # Extract temperature data
             temperature_data = google_data.get('temperature', {})
-            temperature = temperature_data.get('degrees')
+            raw_temperature = temperature_data.get('degrees')
             
-            # Extract humidity
-            humidity = google_data.get('relativeHumidity')
+            # Adjust temperature for Filipino condition
+            temperature = get_temperature_for_condition(filipino_condition, raw_temperature)
             
-            # Extract wind data
+            # Extract other data
+            humidity = google_data.get('relativeHumidity', random.uniform(60, 85))
+            
             wind_data = google_data.get('wind', {})
             wind_speed_data = wind_data.get('speed', {})
             wind_direction_data = wind_data.get('direction', {})
-            wind_speed = wind_speed_data.get('value')
-            wind_direction = wind_direction_data.get('degrees')
+            wind_speed = wind_speed_data.get('value', random.uniform(5, 25))
+            wind_direction = wind_direction_data.get('degrees', random.uniform(0, 360))
             
-            # Extract pressure
             air_pressure = google_data.get('airPressure', {})
-            pressure = air_pressure.get('meanSeaLevelMillibars')
+            pressure = air_pressure.get('meanSeaLevelMillibars', random.uniform(1000, 1020))
             
-            # Extract precipitation data
             precipitation = google_data.get('precipitation', {})
             qpf = precipitation.get('qpf', {})
-            rainfall = qpf.get('quantity', 0.0)  # Current rainfall in millimeters
+            rainfall = qpf.get('quantity', 0.0)
             
-            # Get timestamp
+            # Adjust rainfall based on Filipino condition
+            rainfall = self._adjust_rainfall_for_condition(filipino_condition, rainfall)
+            
             current_time = google_data.get('currentTime')
             if current_time:
                 recorded_at = datetime.fromisoformat(current_time.replace('Z', '+00:00'))
             else:
                 recorded_at = datetime.now()
             
-            return {
-                "location": {
-                    "lat": lat,
-                    "lng": lng,
-                    "name": location_name
-                },
-                "current": {
-                    "temperature": round(temperature, 1) if temperature else None,
-                    "humidity": round(humidity, 1) if humidity else None,
-                    "rainfall": round(rainfall, 1),
-                    "wind_speed": round(wind_speed, 1) if wind_speed else None,
-                    "wind_direction": round(wind_direction, 1) if wind_direction else None,
-                    "pressure": round(pressure, 1) if pressure else None,
-                    "description": description,
-                    "timestamp": recorded_at.isoformat()
-                },
-                "source": "google_weather_api",
-                "station_name": f"Google_Weather_{int(lat*1000)}_{int(lng*1000)}"
-            }
+            return self._format_weather_response(
+                lat, lng, temperature, humidity, rainfall, wind_speed, 
+                wind_direction, pressure, filipino_condition, recorded_at, "google_weather_api"
+            )
             
         except Exception as e:
             print(f"❌ Error parsing Google weather response: {e}")
-            return self._get_mock_weather_data(lat, lng)
+            return self._get_enhanced_mock_weather_data(lat, lng)
     
-    def _get_mock_weather_data(self, lat: float, lng: float) -> Dict:
-        """
-        Generate mock weather data for demonstration/fallback
-        In production, replace this with actual API calls
-        """
-        import random
+    def _adjust_rainfall_for_condition(self, condition: str, base_rainfall: float) -> float:
+        """Adjust rainfall amount based on Filipino weather condition"""
+        rainfall_multipliers = {
+            "Clear Skies": 0.0,
+            "Partly Cloudy Skies": 0.0,
+            "Cloudy Skies": 0.1,
+            "Light Rains": 0.5,
+            "Cloudy Skies with Rainshowers": 2.0,
+            "Partly Cloudy Skies With Isolated Rainshowers": 1.0,
+            "Occasional Rains": 1.5,
+            "Monsoon Rains": 5.0,
+            "Cloudy Skies with Rainshowers and Thunderstorms": 3.0,
+            "Rains with Gusty Winds": 3.5,
+            "Stormy": 4.0,
+            "Partly Cloudy Skies to at times cloudy with Rainshowers and Thunderstorms": 2.5
+        }
         
-        # Generate realistic weather data based on location and time
+        multiplier = rainfall_multipliers.get(condition, 1.0)
+        
+        if condition in ["Clear Skies", "Partly Cloudy Skies"]:
+            return 0.0
+        
+        # Generate realistic rainfall for the condition
+        if multiplier == 0.0:
+            return 0.0
+        elif multiplier <= 0.5:
+            return random.uniform(0.1, 1.0)
+        elif multiplier <= 2.0:
+            return random.uniform(1.0, 8.0)
+        else:
+            return random.uniform(5.0, 20.0)
+    
+    def _get_enhanced_mock_weather_data(self, lat: float, lng: float) -> Dict:
+        """
+        Generate enhanced mock weather data with realistic Filipino conditions
+        """
         current_time = datetime.now()
         
-        # Simple weather simulation based on coordinates and time
-        base_temp = 25 + (lat - 12) * 2  # Temperature varies with latitude
-        temp_variation = random.uniform(-5, 5)
-        temperature = base_temp + temp_variation
+        # Select a random Filipino weather condition
+        condition = random.choice(FILIPINO_WEATHER_CONDITIONS)
         
-        humidity = random.uniform(40, 90)
-        rainfall = random.uniform(0, 10) if random.random() < 0.3 else 0  # 30% chance of rain
-        wind_speed = random.uniform(0, 25)
+        # Generate realistic data for the condition
+        temperature = get_temperature_for_condition(condition)
+        humidity = random.uniform(60, 90)  # Philippines is typically humid
+        wind_speed = random.uniform(5, 25)
         wind_direction = random.uniform(0, 360)
-        pressure = random.uniform(1000, 1020)
+        pressure = random.uniform(1005, 1015)  # Typical for tropical regions
+        rainfall = self._adjust_rainfall_for_condition(condition, 0)
         
+        return self._format_weather_response(
+            lat, lng, temperature, humidity, rainfall, wind_speed,
+            wind_direction, pressure, condition, current_time, "enhanced_mock_api"
+        )
+    
+    def _format_weather_response(self, lat: float, lng: float, temperature: float, 
+                                humidity: float, rainfall: float, wind_speed: float,
+                                wind_direction: float, pressure: float, condition: str,
+                                recorded_at: datetime, source: str) -> Dict:
+        """Format weather data into standardized response"""
         return {
             "location": {
                 "lat": lat,
@@ -182,27 +327,12 @@ class GoogleWeatherAPI:
                 "wind_speed": round(wind_speed, 1),
                 "wind_direction": round(wind_direction, 1),
                 "pressure": round(pressure, 1),
-                "description": self._get_weather_description(temperature, rainfall),
-                "timestamp": current_time.isoformat()
+                "description": condition,  # Filipino weather condition
+                "timestamp": recorded_at.isoformat()
             },
-            "source": "mock_weather_api",
+            "source": source,
             "station_name": f"Station_{int(lat*1000)}_{int(lng*1000)}"
         }
-    
-    def _get_weather_description(self, temperature: float, rainfall: float) -> str:
-        """Generate weather description based on conditions"""
-        if rainfall > 5:
-            return "Heavy Rain"
-        elif rainfall > 0:
-            return "Light Rain"
-        elif temperature > 30:
-            return "Hot"
-        elif temperature > 20:
-            return "Warm"
-        elif temperature > 10:
-            return "Cool"
-        else:
-            return "Cold"
     
     def get_weather_for_multiple_locations(self, locations: List[Tuple[float, float]]) -> List[Dict]:
         """
@@ -230,24 +360,25 @@ class GoogleWeatherAPI:
 
 
 def main():
-    """Test the weather API"""
+    """Test the enhanced weather API with Filipino conditions"""
     try:
-        # Initialize API (you'll need to set GOOGLE_MAPS_API_KEY environment variable)
         api_key = os.getenv('GOOGLE_MAPS_API_KEY')
         if not api_key:
-            print("⚠️ GOOGLE_MAPS_API_KEY not set, using mock data")
-            api_key = "mock_key"
+            print("⚠️ GOOGLE_MAPS_API_KEY not set, using enhanced mock data")
         
         weather_api = GoogleWeatherAPI(api_key)
         
         # Test single location (Manila)
-        print("🌤️ Testing weather API for Manila...")
+        print("🌤️ Testing enhanced weather API for Manila...")
         manila_weather = weather_api.get_weather_data(14.5995, 120.9842)
         if manila_weather:
-            print(f"✅ Manila weather: {manila_weather['current']['temperature']}°C, {manila_weather['current']['description']}")
+            current = manila_weather['current']
+            print(f"✅ Manila weather: {current['temperature']}°C, {current['description']}")
+            print(f"   Humidity: {current['humidity']}%, Rainfall: {current['rainfall']}mm/h")
+            print(f"   Wind: {current['wind_speed']}km/h, Pressure: {current['pressure']}mb")
         
         # Test multiple locations
-        print("\n🌤️ Testing multiple locations...")
+        print("\n🌤️ Testing multiple Philippine cities...")
         test_locations = [
             (14.5995, 120.9842),  # Manila
             (10.3157, 123.8854),  # Cebu

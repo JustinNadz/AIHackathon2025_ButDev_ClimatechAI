@@ -19,6 +19,7 @@ from db.base import SessionLocal, engine
 from sqlalchemy import text
 import json
 import traceback
+from datetime import datetime
 
 # Setup database with PostGIS
 setup_database()
@@ -1122,6 +1123,155 @@ def get_weather_stats():
         
     except Exception as e:
         print(f"❌ Error in get_weather_stats: {e}")
+        print(f"📋 Traceback: {traceback.format_exc()}")
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+    
+    finally:
+        if db:
+            db.close()
+
+
+@app.route("/api/weather-data/frontend-cities", methods=["GET"])
+def get_frontend_cities_weather():
+    """Get weather data for the specific Philippine cities listed in map-component.tsx"""
+    db = None
+    try:
+        print("🗺️ Getting frontend cities weather data...")
+        db = SessionLocal()
+        
+        # Exact coordinates from ClimaTechUser/components/map-component.tsx lines 29-39
+        frontend_cities = [
+            {"name": "Manila", "lat": 14.5995, "lng": 120.9842},
+            {"name": "Quezon City", "lat": 14.6760, "lng": 121.0437},
+            {"name": "Cebu City", "lat": 10.3157, "lng": 123.8854},
+            {"name": "Davao City", "lat": 7.1907, "lng": 125.4553},
+            {"name": "Iloilo City", "lat": 10.7202, "lng": 122.5621},
+            {"name": "Baguio", "lat": 16.4023, "lng": 120.5960},
+            {"name": "Zamboanga City", "lat": 6.9214, "lng": 122.0790},
+            {"name": "Cagayan de Oro", "lat": 8.4542, "lng": 124.6319},
+            {"name": "General Santos", "lat": 6.1164, "lng": 125.1716}
+        ]
+        
+        cities_weather = []
+        successful_cities = 0
+        
+        for city in frontend_cities:
+            try:
+                # Query weather data for this specific city location
+                query = text("""
+                    SELECT 
+                        id,
+                        station_name,
+                        temperature,
+                        humidity,
+                        rainfall,
+                        wind_speed,
+                        wind_direction,
+                        pressure,
+                        weather_metadata->>'description' as weather_condition,
+                        recorded_at,
+                        ST_X(geometry) as longitude,
+                        ST_Y(geometry) as latitude,
+                        created_at
+                    FROM weather_data 
+                    WHERE ST_DWithin(
+                        geometry::geography, 
+                        ST_SetSRID(ST_Point(:lng, :lat), 4326)::geography, 
+                        5000  -- 5km radius
+                    )
+                    ORDER BY created_at DESC 
+                    LIMIT 1
+                """)
+                
+                result = db.execute(query, {"lat": city["lat"], "lng": city["lng"]})
+                weather_row = result.fetchone()
+                
+                if weather_row:
+                    # Weather data found in database
+                    city_weather = {
+                        "id": weather_row[0],
+                        "city_name": city["name"],
+                        "station_name": weather_row[1],
+                        "coordinates": {
+                            "lat": city["lat"],
+                            "lng": city["lng"]
+                        },
+                        "temperature": weather_row[2],
+                        "humidity": weather_row[3],
+                        "rainfall": weather_row[4],
+                        "wind_speed": weather_row[5],
+                        "wind_direction": weather_row[6],
+                        "pressure": weather_row[7],
+                        "weather_condition": weather_row[8],
+                        "filipino_condition": weather_row[8],  # Filipino weather condition
+                        "recorded_at": weather_row[9].isoformat() if weather_row[9] else None,
+                        "data_source": "database",
+                        "status": "success"
+                    }
+                    successful_cities += 1
+                else:
+                    # No weather data found, return city info with placeholder
+                    city_weather = {
+                        "id": None,
+                        "city_name": city["name"],
+                        "station_name": f"{city['name']} Weather Station",
+                        "coordinates": {
+                            "lat": city["lat"],
+                            "lng": city["lng"]
+                        },
+                        "temperature": None,
+                        "humidity": None,
+                        "rainfall": None,
+                        "wind_speed": None,
+                        "wind_direction": None,
+                        "pressure": None,
+                        "weather_condition": "No data available",
+                        "filipino_condition": "No data available",
+                        "recorded_at": None,
+                        "data_source": "none",
+                        "status": "no_data"
+                    }
+                
+                cities_weather.append(city_weather)
+                
+            except Exception as city_error:
+                print(f"❌ Error processing {city['name']}: {city_error}")
+                # Add error entry for this city
+                cities_weather.append({
+                    "id": None,
+                    "city_name": city["name"],
+                    "station_name": f"{city['name']} Weather Station",
+                    "coordinates": {
+                        "lat": city["lat"],
+                        "lng": city["lng"]
+                    },
+                    "temperature": None,
+                    "humidity": None,
+                    "rainfall": None,
+                    "wind_speed": None,
+                    "wind_direction": None,
+                    "pressure": None,
+                    "weather_condition": "Error loading data",
+                    "filipino_condition": "Error loading data",
+                    "recorded_at": None,
+                    "data_source": "error",
+                    "status": "error"
+                })
+        
+        response = {
+            "cities": cities_weather,
+            "total_cities": len(frontend_cities),
+            "cities_with_data": successful_cities,
+            "success_rate": (successful_cities / len(frontend_cities)) * 100 if frontend_cities else 0,
+            "data_source": "postgresql_database",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        print(f"✅ Frontend cities weather data: {successful_cities}/{len(frontend_cities)} cities with data")
+        return jsonify(response)
+        
+    except Exception as e:
+        print(f"❌ Error in get_frontend_cities_weather: {e}")
         print(f"📋 Traceback: {traceback.format_exc()}")
         return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
     

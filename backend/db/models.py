@@ -43,4 +43,5 @@ class WeatherData(Base):
     station_name = Column(String(255), nullable=True)
     recorded_at = Column(DateTime(timezone=True), nullable=True)
     source = Column(String(100), nullable=True)  # e.g., 'PAGASA', 'weather_station'
+    weather_metadata = Column(JSON, nullable=True)  # Additional data like Filipino weather conditions
     created_at = Column(DateTime(timezone=True), server_default=func.now())
