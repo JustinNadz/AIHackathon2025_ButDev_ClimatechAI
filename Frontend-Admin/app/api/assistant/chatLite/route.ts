@@ -5,16 +5,20 @@ import path from 'path';
 export async function POST(request: NextRequest) {
   try {
     const { prompt } = await request.json();
+    const { mode } = await request.json();
     
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
+    }
+    if (!mode) {
+      return NextResponse.json({ error: 'Mode is required' }, { status: 400 });
     }
 
     // Path to your Python script
     const pythonScriptPath = path.join(process.cwd(), 'ai.py');
     
     // Spawn Python process with the prompt as argument
-    const pythonProcess = spawn('python', [pythonScriptPath, prompt], {
+    const pythonProcess = spawn('python', [pythonScriptPath, prompt, mode], {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: process.cwd() // Ensure we're in the right directory
     });
