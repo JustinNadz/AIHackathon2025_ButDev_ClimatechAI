@@ -43,6 +43,56 @@ def read_system_prompt(mode: str = "chat") -> str:
         print(f"Error reading {filename}: {e}, using default prompt")
         return default_prompts.get(mode, default_prompts["chat"])
 
+def detect_input_type_and_format(user_input: str, specified_mode: str = None) -> tuple:
+    """
+    Detect if input is environmental data or normal conversation and format accordingly.
+    
+    Args:
+        user_input (str): The raw user input
+        specified_mode (str): Explicitly specified mode, if any
+        
+    Returns:
+        tuple: (formatted_input, determined_mode)
+    """
+    # If mode is explicitly specified, use it
+    if specified_mode and specified_mode in ["chat", "detect"]:
+        return user_input, specified_mode
+    
+    # Try to parse as JSON (structured environmental data)
+    try:
+        if user_input.strip().startswith('{'):
+            data = json.loads(user_input)
+            # If it has environmental data fields, use detect mode
+            env_fields = ['latitude', 'longitude', 'category', 'sustainedWind_kmh', 'gustWind_kmh', 
+                         'humidity_pct', 'temperature_c', 'rainfallRate_mm_hr', 'windSpeed', 'rainfall']
+            
+            if any(field in data for field in env_fields):
+                # Format the environmental data nicely for the AI
+                formatted_input = "Environmental Data Analysis Request:\n"
+                for key, value in data.items():
+                    formatted_input += f"- {key}: {value}\n"
+                formatted_input += "\nPlease analyze this environmental data and provide detection and risk assessment."
+                return formatted_input, "detect"
+    except json.JSONDecodeError:
+        pass
+    
+    # Check for environmental keywords in text
+    env_keywords = ['weather', 'storm', 'flood', 'earthquake', 'landslide', 'typhoon', 'rainfall', 
+                   'wind', 'temperature', 'humidity', 'disaster', 'emergency', 'evacuation',
+                   'climate', 'hazard', 'risk assessment', 'environmental']
+    
+    user_input_lower = user_input.lower()
+    
+    # If it contains multiple environmental keywords or specific data patterns, use detect mode
+    env_keyword_count = sum(1 for keyword in env_keywords if keyword in user_input_lower)
+    
+    if env_keyword_count >= 2 or any(pattern in user_input_lower for pattern in 
+                                   ['km/h', 'mm/hr', 'degrees celsius', 'coordinates', 'latitude', 'longitude']):
+        return user_input, "detect"
+    
+    # Otherwise, use chat mode for normal conversation
+    return user_input, "chat"
+
 def call_openrouter(user_input: str, mode: str = "chat") -> Dict[str, Any]:
     """
     OpenRouter AI call with mode-specific system prompt and user input.
@@ -136,34 +186,44 @@ if __name__ == "__main__":
     
     # Read input from command line arguments or stdin
     if len(sys.argv) > 1:
-        # First argument is the mode
-        mode = sys.argv[1].lower()
+        # First argument is the mode (but we'll use smart detection if not specified)
+        specified_mode = sys.argv[1].lower() if sys.argv[1].lower() in ["chat", "detect"] else None
         if len(sys.argv) > 2:
             # Second argument onwards is the prompt
-            user_input = " ".join(sys.argv[2:])
+            raw_input = " ".join(sys.argv[2:])
         else:
-            user_input = "What are the current weather conditions in Iloilo City?"
+            raw_input = "What are the current weather conditions in Iloilo City?"
+        
+        # If first argument is not a valid mode, treat it as part of the input
+        if not specified_mode:
+            raw_input = " ".join(sys.argv[1:])
+            specified_mode = None
+            
     else:
         # Default mode and prompt
-        mode = "chat"
+        specified_mode = None
         try:
-            user_input = sys.stdin.read().strip()
-            if user_input.startswith('{'):
+            raw_input = sys.stdin.read().strip()
+            if raw_input.startswith('{'):
                 # Parse JSON input (for API calls)
                 try:
-                    data = json.loads(user_input)
-                    user_input = data.get('prompt', '')
-                    mode = data.get('mode', 'chat')
+                    data = json.loads(raw_input)
+                    if isinstance(data, dict):
+                        # Check if it's structured API input
+                        if 'prompt' in data:
+                            raw_input = data.get('prompt', '')
+                            specified_mode = data.get('mode', None)
+                        else:
+                            # It's environmental data
+                            raw_input = json.dumps(data)
                 except json.JSONDecodeError:
                     pass
         except:
-            user_input = "What are the current weather conditions in Iloilo City?"
+            raw_input = "What are the current weather conditions in Iloilo City?"
     
-    # Validate mode
-    if mode not in ["chat", "detect"]:
-        print(f"Error: Invalid mode '{mode}'. Using 'chat' mode instead.")
-        mode = "chat"
+    # Use smart detection to determine input type and mode
+    formatted_input, determined_mode = detect_input_type_and_format(raw_input, specified_mode)
     
-    print(f"Using {mode} mode...")
-    result = call_openrouter(user_input, mode)
+    print(f"Using {determined_mode} mode...")
+    result = call_openrouter(formatted_input, determined_mode)
     print(json.dumps(result, indent=2))

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -15,12 +15,16 @@ type ChatMessage = {
   time: string
 }
 
-export default function EmergencyChat() {
+export interface EmergencyChatRef {
+  addAIResponse: (content: string) => void
+}
+
+const EmergencyChat = forwardRef<EmergencyChatRef, {}>((_, ref) => {
   const [hasMounted, setHasMounted] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([{
     id: 'assistant-welcome',
     role: "assistant",
-    content: "Hi, I’m your emergency assistant. Tell me your location or share coordinates, and I’ll guide you with the right protocol, contacts, and nearest evacuation center.",
+    content: "Hi, I'm your emergency assistant. Tell me your location or share coordinates, and I'll guide you with the right protocol, contacts, and nearest evacuation center.",
     time: "" // set on mount to avoid SSR/client mismatch
   }])
   const [input, setInput] = useState("")
@@ -29,15 +33,114 @@ export default function EmergencyChat() {
   const [status, setStatus] = useState<'idle' | 'listening' | 'thinking' | 'responded' | 'error'>('idle')
   const listRef = useRef<HTMLDivElement>(null)
   const recognitionRef = useRef<any>(null)
+  const synthRef = useRef<SpeechSynthesis | null>(null)
 
   const scrollToBottom = () => {
     setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' }), 50)
   }
 
+  // Clean text for voice synthesis - remove markdown and formatting
+  const cleanTextForSpeech = (text: string): string => {
+    return text
+      // Remove markdown headers (##, ###, etc.)
+      .replace(/^#{1,6}\s+/gm, '')
+      // Remove bold/italic asterisks and underscores
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\*([^*]+)\*/g, '$1')
+      .replace(/__([^_]+)__/g, '$1')
+      .replace(/_([^_]+)_/g, '$1')
+      // Remove bullet points and list markers
+      .replace(/^\s*[\*\-\+]\s+/gm, '')
+      .replace(/^\s*\d+\.\s+/gm, '')
+      // Remove horizontal rules
+      .replace(/^---+$/gm, '')
+      // Remove code blocks and inline code
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/`([^`]+)`/g, '$1')
+      // Clean up multiple spaces and newlines
+      .replace(/\n\s*\n\s*\n/g, '\n\n')
+      .replace(/\s+/g, ' ')
+      // Remove special characters that don't add meaning for speech
+      .replace(/[•◦▪▫]/g, '')
+      // Clean up parentheses content that might be technical
+      .replace(/\([^)]*%[^)]*\)/g, '')
+      // Trim whitespace
+      .trim()
+  }
+
+  // Speech synthesis function for AI responses
+  const speakText = (text: string) => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return
+    
+    // Clean text for better speech synthesis
+    const cleanedText = cleanTextForSpeech(text)
+    
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel()
+    
+    const utterance = new SpeechSynthesisUtterance(cleanedText)
+    utterance.rate = 1
+    utterance.pitch = 1
+    utterance.volume = 1
+    
+    // Try to use a professional voice
+    const voices = window.speechSynthesis.getVoices()
+    const preferredVoice = voices.find(voice => 
+      voice.name.includes('Google') || 
+      voice.name.includes('Microsoft') ||
+      voice.name.includes('David') ||
+      voice.name.includes('Alex')
+    ) || voices[0]
+    
+    if (preferredVoice) {
+      utterance.voice = preferredVoice
+    }
+    
+    window.speechSynthesis.speak(utterance)
+  }
+
+  // External method to add AI responses (called from dashboard)
+  const addAIResponse = (content: string) => {
+    const aiResponse: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content,
+      time: new Date().toLocaleTimeString()
+    }
+    
+    setMessages(prev => [...prev, aiResponse])
+    setStatus('responded')
+    setTimeout(() => setStatus('idle'), 1500)
+    scrollToBottom()
+    
+    // Speak the AI response
+    speakText(content)
+  }
+
+  // Expose methods to parent components via ref
+  useImperativeHandle(ref, () => ({
+    addAIResponse
+  }))
+
   // Avoid hydration mismatch: set dynamic time after mount only
   useEffect(() => {
     setHasMounted(true)
     setMessages(prev => prev.map((m, i) => i === 0 ? { ...m, time: new Date().toLocaleTimeString() } : m))
+    
+    // Initialize speech synthesis
+    if (typeof window !== 'undefined') {
+      synthRef.current = window.speechSynthesis
+      
+      // Load voices
+      const loadVoices = () => {
+        window.speechSynthesis.getVoices()
+      }
+      loadVoices()
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = loadVoices
+      }
+    }
+    
     // Setup browser speech recognition if available (Chrome/Edge)
     try {
       if (typeof window !== 'undefined') {
@@ -89,25 +192,77 @@ export default function EmergencyChat() {
     scrollToBottom()
 
     try {
-      const res = await fetch('/api/assistant/chat', {
+      const res = await fetch('http://localhost:3000/api/assistant/chatLite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: messages.concat(outbound).map(m => ({ role: m.role, content: m.content })),
+          prompt: input.trim(),
+          mode: "chat"
         })
       })
 
       const data = await res.json().catch(() => ({}))
-      const content = data?.reply || (res.ok ? 'OK' : 'No response available.')
+      console.log('Chat API Response:', data) // Debug log
+      
+      // Extract response text from the API response
+      let content = ''
+      
+      // Handle error responses first
+      if (data.error) {
+        content = `Error: ${data.error}`
+      } 
+      // Handle successful responses - the API returns the parsed JSON from Python
+      else if (data.response) {
+        content = data.response
+      } else if (data.message) {
+        content = data.message
+      } else if (data.reply) {
+        content = data.reply
+      } else if (data.analysis) {
+        content = data.analysis
+      } else if (data.result) {
+        content = data.result
+      } else if (data.text) {
+        content = data.text
+      } else if (data.content) {
+        content = data.content
+      } else if (data.answer) {
+        content = data.answer
+      } else if (typeof data === 'string') {
+        content = data
+      } 
+      // If data has any string properties, try to use the first one
+      else if (typeof data === 'object' && data !== null) {
+        const stringValues = Object.values(data).filter(val => typeof val === 'string' && val.trim().length > 0)
+        if (stringValues.length > 0) {
+          content = stringValues[0] as string
+        } else {
+          content = 'I processed your message but couldn\'t generate a readable response. Please try rephrasing your question.'
+        }
+      } 
+      else if (res.ok) {
+        content = 'I received your message but couldn\'t generate a proper response. Please try again.'
+      } else {
+        content = 'No response available.'
+      }
 
-      setMessages((m) => [...m, { id: crypto.randomUUID(), role: 'assistant', content, time: new Date().toLocaleTimeString() }])
+      const assistantMessage: ChatMessage = { id: crypto.randomUUID(), role: 'assistant', content, time: new Date().toLocaleTimeString() }
+      setMessages((m) => [...m, assistantMessage])
       setStatus('responded')
       setTimeout(() => setStatus('idle'), 1500)
       scrollToBottom()
+      
+      // Speak the assistant response
+      speakText(content)
+      
     } catch (e) {
-      setMessages((m) => [...m, { id: crypto.randomUUID(), role: 'assistant', content: 'Unable to reach assistant right now. Please try again shortly.', time: new Date().toLocaleTimeString() }])
+      const errorContent = 'Unable to reach assistant right now. Please try again shortly.'
+      setMessages((m) => [...m, { id: crypto.randomUUID(), role: 'assistant', content: errorContent, time: new Date().toLocaleTimeString() }])
       setStatus('error')
       setTimeout(() => setStatus('idle'), 1500)
+      
+      // Speak the error message
+      speakText(errorContent)
     } finally {
       setBusy(false)
     }
@@ -190,6 +345,10 @@ export default function EmergencyChat() {
       </CardContent>
     </Card>
   )
-}
+})
+
+EmergencyChat.displayName = "EmergencyChat"
+
+export default EmergencyChat
 
 
