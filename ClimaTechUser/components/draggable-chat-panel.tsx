@@ -237,10 +237,10 @@ export default function DraggableChatPanel({ isOpen, onToggle, selectedLocation 
 
   return (
     <>
-      {/* Floating Chat Bubble for City Weather Responses - Always available */}
-      {showFloating && floatingMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end space-y-4">
-          {/* Floating Chat Bubble */}
+      {/* Single Round AI Assistant Button - Always visible in bottom right */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end space-y-4">
+        {/* Floating Chat Bubble - Shows above button when needed */}
+        {showFloating && floatingMessage && (
           <div className="max-w-sm bg-gradient-to-br from-blue-600 to-green-500 text-white rounded-2xl shadow-2xl p-4 animate-in slide-in-from-bottom-4 duration-500">
             <div className="flex items-start justify-between mb-2">
               <div className="flex items-center space-x-2">
@@ -279,45 +279,23 @@ export default function DraggableChatPanel({ isOpen, onToggle, selectedLocation 
               </Button>
             </div>
           </div>
-          
-          {/* Round AI Assistant Button */}
-          <div className="relative">
-            <Button
-              onClick={() => {
-                if (showFloating) {
-                  // If floating is open, close it
-                  setShowFloating(false)
-                } else {
-                  // If floating is closed, show it (don't interfere with main panel)
-                  setShowFloating(true)
-                }
-              }}
-              className="w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-green-500 hover:from-blue-700 hover:to-green-600 shadow-2xl border-2 border-white/20 transition-all duration-300 hover:scale-110"
-            >
-              <div className="relative">
-                <Bot className="h-6 w-6 text-white" />
-                {/* Thinking animation when loading */}
-                {isLoading && (
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-400 rounded-full animate-pulse"></div>
-                )}
-              </div>
-            </Button>
-            
-            {/* City name label */}
-            {floatingMessage.cityName && (
-              <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black/80 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
-                {floatingMessage.cityName}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Standalone Round AI Button - Show when main panel is closed and no floating message */}
-      {!isOpen && !showFloating && (
-        <div className="fixed bottom-6 right-6 z-50">
+        )}
+        
+        {/* Single Round AI Button - Handles all interactions */}
+        <div className="relative">
           <Button
-            onClick={onToggle}
+            onClick={() => {
+              if (showFloating) {
+                // If floating chat is open, close it
+                setShowFloating(false)
+              } else if (isOpen) {
+                // If main panel is open, close it
+                onToggle()
+              } else {
+                // If everything is closed, open main panel
+                onToggle()
+              }
+            }}
             className="w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-green-500 hover:from-blue-700 hover:to-green-600 shadow-2xl border-2 border-white/20 transition-all duration-300 hover:scale-110"
           >
             <div className="relative">
@@ -326,10 +304,21 @@ export default function DraggableChatPanel({ isOpen, onToggle, selectedLocation 
               {isLoading && (
                 <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-400 rounded-full animate-pulse"></div>
               )}
+              {/* Notification dot when floating message is available */}
+              {floatingMessage && !showFloating && (
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse border-2 border-white"></div>
+              )}
             </div>
           </Button>
+          
+          {/* City name label - only show when floating message exists */}
+          {floatingMessage && floatingMessage.cityName && (
+            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black/80 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+              {floatingMessage.cityName}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Main Chat Panel - Only show when opened */}
       {isOpen && (
