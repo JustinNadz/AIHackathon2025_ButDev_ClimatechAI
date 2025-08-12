@@ -311,3 +311,144 @@
 /* rotate globe overlay slowly */
 .ai-orb .mix-blend-screen { animation: globe-rotate 24s linear infinite; }
 @keyframes globe-rotate { to { transform: rotate(360deg); } }
+ 
+ /* Animated climate backgrounds */
+ @keyframes climate-pan {
+   0% { background-position: 0% 0%; transform: scale(1); }
+   50% { background-position: 50% 30%; transform: scale(1.05); }
+   100% { background-position: 0% 0%; transform: scale(1); }
+ }
+ .climate-bg-pan {
+   animation: climate-pan 60s ease-in-out infinite;
+   will-change: transform, background-position;
+ }
+ 
+ @keyframes climate-clouds {
+   0% { background-position: 0% 0%; }
+   50% { background-position: 100% 50%; }
+   100% { background-position: 0% 0%; }
+ }
+ .climate-cloud-drift {
+   animation: climate-clouds 120s linear infinite;
+   will-change: background-position;
+ }
+ 
+ @keyframes climate-gradient-breathe {
+   0% { opacity: 0.75; }
+   50% { opacity: 0.9; }
+   100% { opacity: 0.75; }
+ }
+ .climate-gradient-breathe {
+   animation: climate-gradient-breathe 12s ease-in-out infinite;
+ }
+ 
+ /* Respect reduced motion preferences */
+ @media (prefers-reduced-motion: reduce) {
+   .climate-bg-pan,
+   .climate-cloud-drift,
+   .climate-gradient-breathe {
+     animation: none !important;
+   }
+ }
+
+/* Particle-only background animation */
+.climate-particles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 5;
+}
+
+.climate-particles .particle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--size, 6px);
+  height: var(--size, 6px);
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255,255,255,0.95), rgba(255,255,255,0.25) 60%, rgba(255,255,255,0) 70%);
+  opacity: var(--opacity, 0.35);
+  filter: blur(var(--blur, 1px));
+  transform: translate(var(--x, 0), var(--y, 0));
+  animation: particle-drift var(--dur, 60s) linear infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+@keyframes particle-drift {
+  to {
+    transform: translate(calc(var(--x, 0) + var(--dx, 0)), calc(var(--y, 0) + var(--dy, 0)));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .climate-particles .particle { animation: none !important; }
+}
+
+/* Geometric particle system */
+.geo-particles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 5;
+}
+
+.geo-drift {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(var(--x, 0), var(--y, 0));
+  animation: geo-drift var(--dur, 80s) linear infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+.geo {
+  display: block;
+  opacity: var(--opacity, 0.4);
+  transform-origin: 50% 50%;
+  animation: geo-rotate var(--rotDur, 40s) linear infinite;
+}
+
+.geo.sq {
+  width: var(--size, 18px);
+  height: var(--size, 18px);
+  border-radius: 6px;
+  border: 1.5px solid var(--color, rgba(255,255,255,0.4));
+  background: color-mix(in srgb, var(--color, rgba(255,255,255,0.4)) 12%, transparent);
+}
+
+.geo.tri {
+  width: var(--size, 22px);
+  height: var(--size, 22px);
+  background: color-mix(in srgb, var(--color, rgba(255,255,255,0.4)) 16%, transparent);
+  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+}
+
+.geo.hex {
+  width: var(--size, 24px);
+  height: var(--size, 24px);
+  background: color-mix(in srgb, var(--color, rgba(255,255,255,0.4)) 14%, transparent);
+  clip-path: polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%);
+}
+
+.geo.line {
+  width: var(--length, 40px);
+  height: var(--thickness, 2px);
+  border-radius: 9999px;
+  background: var(--color, rgba(255,255,255,0.5));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--color, rgba(255,255,255,0.5)) 35%, transparent);
+}
+
+@keyframes geo-drift {
+  to {
+    transform: translate(calc(var(--x, 0) + var(--dx, 0)), calc(var(--y, 0) + var(--dy, 0)));
+  }
+}
+
+@keyframes geo-rotate {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .geo-drift, .geo { animation: none !important; }
+}

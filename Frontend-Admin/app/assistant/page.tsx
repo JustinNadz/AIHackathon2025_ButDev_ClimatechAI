@@ -67,17 +67,35 @@ export default function AssistantPage() {
   const submit = async (text: string) => {
     const user: Message = { role: "user", content: text }
     setMessages((prev) => [...prev, user])
+
+    // Handle greetings locally with a fixed response
+    const lower = text.trim().toLowerCase()
+    if (/(^|\b)(hi|hello|hey|good\s*(morning|afternoon|evening))($|\b)/.test(lower)) {
+      const greeting = "Hello, this is ClimaTech AI. How can I help you today?"
+      const assistant: Message = { role: "assistant", content: greeting }
+      setMessages((prev) => [...prev, assistant])
+      speak(greeting)
+      return
+    }
     try {
       const res = await fetch('/api/assistant/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [...messages, user] }),
+        body: JSON.stringify({ messages: [...messages, user], mode: 'voice' }),
       })
       const data = await res.json()
       const replyText = data?.reply || friendlyReply(text)
       const assistant: Message = { role: "assistant", content: replyText }
       setMessages((prev) => [...prev, assistant])
       speak(replyText)
+
+      // Optional action handling returned from backend
+      const action = data?.action
+      if (action && action.type) {
+        try {
+          await handleAssistantAction(action)
+        } catch {}
+      }
     } catch {
       const fallback = friendlyReply(text)
       const assistant: Message = { role: "assistant", content: fallback }
@@ -86,9 +104,28 @@ export default function AssistantPage() {
     }
   }
 
+  const handleAssistantAction = async (action: any) => {
+    switch (action.type) {
+      case 'navigate': {
+        const to = action.params?.to || '/dashboard'
+        router.push(String(to))
+        return
+      }
+      case 'weather.query': {
+        const location = String(action.params?.location || 'current location')
+        const response = `Okay, fetching weather for ${location}.`
+        setMessages((prev) => [...prev, { role: 'assistant', content: response }])
+        speak(response)
+        return
+      }
+      default:
+        return
+    }
+  }
+
   const friendlyReply = (text: string): string => {
     const t = text.toLowerCase()
-    if (t.includes("hello") || t.includes("hi")) return "Hello! How can I help you today?"
+    if (t.includes("hello") || t.includes("hi")) return "Hello, this is ClimaTech AI. How can I help you today?"
     if (t.includes("weather")) return "For weather, I can fetch the latest conditions and alerts. What city should I check?"
     if (t.includes("name")) return "I'm your ClimaTech assistant. Nice to meet you!"
     return `You said: "${text}". I can help analyze weather, emergencies, and energy data.`

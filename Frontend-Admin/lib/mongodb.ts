@@ -87,7 +87,7 @@ export async function updateUser(id: string, updates: Partial<AdminUser>): Promi
   const filter: any = idFilter(id);
   const set: any = { ...updates, updatedAt: new Date().toISOString() };
   const res = await db.collection('users').findOneAndUpdate(filter, { $set: set }, { returnDocument: 'after' });
-  return res?.value ? normalize<AdminUser>(res.value) : null;
+  return res ? normalize<AdminUser>(res) : null;
 }
 
 export async function deleteUser(id: string): Promise<boolean> {
@@ -139,7 +139,7 @@ export async function updateContact(id: string, updates: Partial<EmergencyContac
   const filter: any = idFilter(id);
   const set: any = { ...updates, updatedAt: new Date().toISOString() };
   const res = await db.collection('emergency_contacts').findOneAndUpdate(filter, { $set: set }, { returnDocument: 'after' });
-  return res?.value ? normalize<EmergencyContact>(res.value) : null;
+  return res ? normalize<EmergencyContact>(res) : null;
 }
 
 export async function deleteContact(id: string): Promise<boolean> {
@@ -196,7 +196,7 @@ export async function updateCenter(id: string, updates: Partial<EvacuationCenter
   const filter: any = idFilter(id);
   const set: any = { ...updates, updatedAt: new Date().toISOString() };
   const res = await db.collection('evacuation_centers').findOneAndUpdate(filter, { $set: set }, { returnDocument: 'after' });
-  return res?.value ? normalize<EvacuationCenter>(res.value) : null;
+  return res ? normalize<EvacuationCenter>(res) : null;
 }
 
 export async function deleteCenter(id: string): Promise<boolean> {
@@ -245,7 +245,7 @@ export async function updateMessage(id: string, updates: Partial<MessageTemplate
   const filter: any = idFilter(id);
   const set: any = { ...updates, updatedAt: new Date().toISOString() };
   const res = await db.collection('message_templates').findOneAndUpdate(filter, { $set: set }, { returnDocument: 'after' });
-  return res?.value ? normalize<MessageTemplate>(res.value) : null;
+  return res ? normalize<MessageTemplate>(res) : null;
 }
 
 export async function deleteMessage(id: string): Promise<boolean> {
@@ -294,7 +294,7 @@ export async function updateProtocol(id: string, updates: Partial<EmergencyProto
   const filter: any = idFilter(id);
   const set: any = { ...updates, updatedAt: new Date().toISOString() };
   const res = await db.collection('emergency_protocols').findOneAndUpdate(filter, { $set: set }, { returnDocument: 'after' });
-  return res?.value ? normalize<EmergencyProtocol>(res.value) : null;
+  return res ? normalize<EmergencyProtocol>(res) : null;
 }
 
 export async function deleteProtocol(id: string): Promise<boolean> {
@@ -349,7 +349,7 @@ export async function updateTeam(id: string, updates: Partial<ResponseTeam>): Pr
   const filter: any = idFilter(id);
   const set: any = { ...updates, updatedAt: new Date().toISOString() };
   const res = await db.collection('response_teams').findOneAndUpdate(filter, { $set: set }, { returnDocument: 'after' });
-  return res?.value ? normalize<ResponseTeam>(res.value) : null;
+  return res ? normalize<ResponseTeam>(res) : null;
 }
 
 export async function deleteTeam(id: string): Promise<boolean> {
