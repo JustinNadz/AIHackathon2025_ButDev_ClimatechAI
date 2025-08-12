@@ -41,7 +41,6 @@ const menuItems = [
   { title: "Emergency Protocols", icon: AlertTriangle, url: "/dashboard/emergency" },
   { title: "Live Data Feed", icon: Radio, url: "/dashboard/live-data" },
   { title: "Predictive Analytics", icon: TrendingUp, url: "/dashboard/analytics" },
-  { title: "Energy Management", icon: Zap, url: "/dashboard/energy" },
   { title: "Reports & Logs", icon: FileText, url: "/dashboard/reports" },
   { title: "System and User Management", icon: Settings, url: "/dashboard/admin" },
   { title: "Help & Support", icon: HelpCircle, url: "/dashboard/help" },

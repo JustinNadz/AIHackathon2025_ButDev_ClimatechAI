@@ -597,10 +597,8 @@ export function InteractiveMap() {
   const [animationFrame, setAnimationFrame] = useState(0);
   const [landslideMarkers, setLandslideMarkers] = useState<google.maps.Marker[]>([]);
   const [fireMarkers, setFireMarkers] = useState<google.maps.Marker[]>([]);
-  const [energyMarkers, setEnergyMarkers] = useState<google.maps.Marker[]>([]);
   const [landslideZones, setLandslideZones] = useState<google.maps.Polygon[]>([]);
   const [fireZones, setFireZones] = useState<google.maps.Polygon[]>([]);
-  const [energyZones, setEnergyZones] = useState<google.maps.Polygon[]>([]);
 
   const getPolygonCentroid = (coords: google.maps.LatLngLiteral[]): google.maps.LatLngLiteral => {
     const { length } = coords;
@@ -856,8 +854,7 @@ export function InteractiveMap() {
   const riskZones = [
     { id: 1, name: "Iloilo River Basin", type: "flood", level: "high", lat: 10.7200, lng: 122.5500 },
     { id: 2, name: "Jaro District Hills", type: "landslide", level: "medium", lat: 10.7450, lng: 122.5650 },
-    { id: 3, name: "Iloilo Solar Farm", type: "energy", level: "active", lat: 10.7350, lng: 122.5750 },
-    { id: 4, name: "La Paz Fire Zone", type: "fire", level: "high", lat: 10.7150, lng: 122.5450 },
+    { id: 3, name: "La Paz Fire Zone", type: "fire", level: "high", lat: 10.7150, lng: 122.5450 },
   ]
   
   const handleMapLoad = useCallback((mapInstance: google.maps.Map) => {
@@ -871,7 +868,6 @@ export function InteractiveMap() {
     { id: "flood", label: "Flood Risk", icon: Droplets },
     { id: "landslide", label: "Landslide Risk", icon: Mountain },
     { id: "fire", label: "Fire Risk", icon: Flame },
-    { id: "energy", label: "Energy", icon: Zap },
   ]
 
   // Weather data fetching functions
@@ -1022,18 +1018,14 @@ export function InteractiveMap() {
       floodCenterMarkers.forEach(m => m.setMap(null));
       landslideMarkers.forEach(m => m.setMap(null));
       fireMarkers.forEach(m => m.setMap(null));
-      energyMarkers.forEach(m => m.setMap(null));
       landslideZones.forEach(z => z.setMap(null));
       fireZones.forEach(z => z.setMap(null));
-      energyZones.forEach(z => z.setMap(null));
       setFloodPolygons([]);
       setFloodCenterMarkers([]);
       setLandslideMarkers([]);
       setFireMarkers([]);
-      setEnergyMarkers([]);
       setLandslideZones([]);
       setFireZones([]);
-      setEnergyZones([]);
       if (centerMarkerRef.current) {
         centerMarkerRef.current.setMap(null);
         centerMarkerRef.current = null;
@@ -1208,15 +1200,13 @@ export function InteractiveMap() {
         const typeToEmoji: Record<string, string> = {
           landslide: '⛰️',
           fire: '🔥',
-          energy: '⚡',
         };
         const markers: google.maps.Marker[] = [];
         const newPolygons: google.maps.Polygon[] = [];
         const positions: google.maps.LatLngLiteral[] = [];
         const filtered = riskZones.filter(z => 
           (selectedLayer === 'landslide' && z.type === 'landslide') ||
-          (selectedLayer === 'fire' && z.type === 'fire') ||
-          (selectedLayer === 'energy' && z.type === 'energy')
+          (selectedLayer === 'fire' && z.type === 'fire')
         );
         filtered.forEach(z => {
           const pos = { lat: z.lat, lng: z.lng };
@@ -1230,7 +1220,7 @@ export function InteractiveMap() {
           positions.push(pos);
           // Polygon zone around center (diamond shape)
           const sizeByLevel: Record<string, number> = { high: 0.008, medium: 0.006, low: 0.004, active: 0.006 };
-          const colorByType: Record<string, string> = { landslide: '#f59e0b', fire: '#ef4444', energy: '#22c55e' };
+          const colorByType: Record<string, string> = { landslide: '#f59e0b', fire: '#ef4444' };
           const poly = new google.maps.Polygon({
             paths: [
               { lat: pos.lat + sizeByLevel[z.level] || 0.005, lng: pos.lng },
@@ -1271,13 +1261,11 @@ export function InteractiveMap() {
 
         if (selectedLayer === 'landslide') setLandslideMarkers(markers);
         if (selectedLayer === 'fire') setFireMarkers(markers);
-        if (selectedLayer === 'energy') setEnergyMarkers(markers);
         if (selectedLayer === 'landslide') setLandslideZones(newPolygons as unknown as any);
         if (selectedLayer === 'fire') setFireZones(newPolygons as unknown as any);
-        if (selectedLayer === 'energy') setEnergyZones(newPolygons as unknown as any);
 
-        // Zoom preference: high level for landslide/fire, active for energy
-        const priority = selectedLayer === 'energy' ? 'active' : 'high';
+        // Zoom preference: high level for landslide/fire
+        const priority = 'high';
         const priorityPositions = filtered
           .filter(z => z.level === priority)
           .map(z => ({ lat: z.lat, lng: z.lng }));
@@ -1324,10 +1312,8 @@ export function InteractiveMap() {
         const positions: google.maps.LatLngLiteral[] = [];
         const landslideArr: google.maps.Marker[] = [];
         const fireArr: google.maps.Marker[] = [];
-        const energyArr: google.maps.Marker[] = [];
         const landslidePolyArr: google.maps.Polygon[] = [];
         const firePolyArr: google.maps.Polygon[] = [];
-        const energyPolyArr: google.maps.Polygon[] = [];
         riskZones.forEach(z => {
           const pos = { lat: z.lat, lng: z.lng };
           if (z.type === 'landslide') {
@@ -1376,40 +1362,14 @@ export function InteractiveMap() {
               iw.open(map);
               currentInfoWindowRef.current = iw;
             });
-            firePolyArr.push(poly);
-            positions.push(pos);
-          } else if (z.type === 'energy') {
-            energyArr.push(new google.maps.Marker({ position: pos, map, icon: getTransparentIcon(), label: { text: '⚡', color: '#111827', fontSize: '18px' as any } }));
-            const s = 0.006;
-            const coords = [
-              { lat: pos.lat + s, lng: pos.lng },
-              { lat: pos.lat, lng: pos.lng + s },
-              { lat: pos.lat - s, lng: pos.lng },
-              { lat: pos.lat, lng: pos.lng - s },
-            ];
-            const poly = new google.maps.Polygon({ paths: coords, strokeColor: '#22c55e', strokeOpacity: 0.9, strokeWeight: 3, fillColor: '#22c55e', fillOpacity: 0.35, map, zIndex: 90 });
-            const cont = document.createElement('div'); cont.style.position='relative'; cont.style.font='13px system-ui';
-            const x = document.createElement('button'); x.textContent='×'; x.setAttribute('aria-label','Close'); Object.assign(x.style,{position:'absolute',top:'4px',right:'6px',background:'#ef4444',color:'#fff',border:'none',borderRadius:'9999px',width:'18px',height:'18px',cursor:'pointer',lineHeight:'16px',textAlign:'center'});
-            const b = document.createElement('div'); b.innerHTML=`<strong>Energy Site</strong><br/>Status: ACTIVE<br/>Location: ${z.name || 'Site'}`;
-            cont.appendChild(x); cont.appendChild(b);
-            const iw = new google.maps.InfoWindow({ content: cont });
-            x.addEventListener('click',(ev)=>{ev.preventDefault();ev.stopPropagation(); iw.close(); if(currentInfoWindowRef.current===iw) currentInfoWindowRef.current=null;});
-            poly.addListener('click', (e: google.maps.MapMouseEvent) => {
-              if (currentInfoWindowRef.current) currentInfoWindowRef.current.close();
-              if (e.latLng) iw.setPosition(e.latLng);
-              iw.open(map);
-              currentInfoWindowRef.current = iw;
-            });
-            energyPolyArr.push(poly);
+                        firePolyArr.push(poly);
             positions.push(pos);
           }
         });
         setLandslideMarkers(landslideArr);
         setFireMarkers(fireArr);
-        setEnergyMarkers(energyArr);
         setLandslideZones(landslidePolyArr as unknown as any);
         setFireZones(firePolyArr as unknown as any);
-        setEnergyZones(energyPolyArr as unknown as any);
 
         // Fit to all features once
         const polygonCenters = sampleFloodPredictions.map(p => getPolygonCentroid(p.coordinates));
@@ -1436,8 +1396,7 @@ export function InteractiveMap() {
     const ringOpacity = 0.35 + (Math.sin(animationFrame * 0.5) * 0.1);
     landslideZones.forEach((p: any) => p.setOptions({ fillOpacity: ringOpacity }));
     fireZones.forEach((p: any) => p.setOptions({ fillOpacity: ringOpacity }));
-    energyZones.forEach((p: any) => p.setOptions({ fillOpacity: ringOpacity }));
-  }, [animationFrame, floodPolygons, landslideZones, fireZones, energyZones]);
+  }, [animationFrame, floodPolygons, landslideZones, fireZones]);
 
   const getLevelColor = (level: string) => {
     switch (level) {
@@ -1523,19 +1482,9 @@ export function InteractiveMap() {
               Back to Dashboard
             </Button>
           </div>
-          {/* AlphaEarth Toggle */}
-          <div className="absolute top-4 right-4 z-10 flex gap-2">
-            <Button
-              onClick={() => setShowAlphaEarth((v: boolean) => !v)}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              size="sm"
-            >
-              {showAlphaEarth ? 'Hide AlphaEarth' : 'AlphaEarth AI'}
-            </Button>
-          </div>
           
           {/* Fullscreen Layer Toolbar */}
-          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10 w-full max-w-4xl px-4">
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 w-full max-w-4xl px-4">
             <div className="flex gap-3 overflow-x-auto p-2 bg-white/80 rounded-lg shadow-md backdrop-blur-sm">
               {mapLayers.map((layer) => (
                 <Button
@@ -1780,15 +1729,7 @@ export function InteractiveMap() {
 
           {/* Map Controls */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-2">
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline" className="border-blue-200 text-blue-700">
-                125 Monitoring Stations
-              </Badge>
-              <Badge variant="outline" className="border-green-200 text-green-700">
-                15 Clean Energy Sites
-              </Badge>
-            </div>
-            <div className="flex gap-2">
+            <div className="flex ml-auto">
               <Button 
                 variant="outline" 
                 size="sm" 

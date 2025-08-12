@@ -41,15 +41,7 @@ const mockNotifications: Notification[] = [
     read: false,
     category: "Weather",
   },
-  {
-    id: "2",
-    title: "Power Grid Anomaly Detected",
-    message: "Unusual power consumption patterns detected in Quezon City grid. Investigating potential issues.",
-    type: "warning",
-    timestamp: "2024-01-19T13:15:00Z",
-    read: false,
-    category: "Energy",
-  },
+
   {
     id: "3",
     title: "Earthquake Monitoring Update",
@@ -77,15 +69,7 @@ const mockNotifications: Notification[] = [
     read: false,
     category: "Environment",
   },
-  {
-    id: "6",
-    title: "Solar Panel Efficiency Report",
-    message: "Monthly solar panel efficiency report available. 15% increase in energy generation this month.",
-    type: "info",
-    timestamp: "2024-01-19T09:00:00Z",
-    read: true,
-    category: "Energy",
-  },
+
 ]
 
 const getNotificationIcon = (type: string) => {

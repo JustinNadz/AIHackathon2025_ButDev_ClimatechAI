@@ -128,7 +128,7 @@ export default function AssistantPage() {
     if (t.includes("hello") || t.includes("hi")) return "Hello, this is C.L.I.M.A – Climate Learning & Intelligent Monitoring Assistant. How can I help you today?"
     if (t.includes("weather")) return "For weather, I can fetch the latest conditions and alerts. What city should I check?"
     if (t.includes("name")) return "I'm C.L.I.M.A – Climate Learning & Intelligent Monitoring Assistant. Nice to meet you!"
-    return `You said: "${text}". I can help analyze weather, emergencies, and energy data.`
+    return `You said: "${text}". I can help analyze weather and emergency data.`
   }
 
   const startListening = () => {
