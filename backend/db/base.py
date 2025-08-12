@@ -6,6 +6,9 @@ engine = create_engine(DATABASE_URL, echo=False)
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
+# Import models to ensure they are registered with SQLAlchemy
+from . import models
+
 
 def create_tables():
     """Create all tables and enable PostGIS extension"""
