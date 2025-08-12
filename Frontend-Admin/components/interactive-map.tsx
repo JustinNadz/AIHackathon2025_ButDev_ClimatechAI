@@ -616,6 +616,7 @@ const render = (status: Status): React.ReactElement => {
 
 export function InteractiveMap() {
 
+	const [selectedLocation, setSelectedLocation] = useState<{ lat: number, lng: number }>({ lat: 10.7302, lng: 122.5591 });
 	const [selectedLayer, setSelectedLayer] = useState<string>("all");
     const [queryRadius, setQueryRadius] = useState<number>(50);
     const [apiKeyStatus, setApiKeyStatus] = useState<'checking' | 'valid' | 'invalid' | 'billing-error'>('checking');
@@ -629,7 +630,6 @@ export function InteractiveMap() {
 	
 	// Missing state variables
 	const [currentMapCenter, setCurrentMapCenter] = useState<{ lat: number, lng: number }>({ lat: 10.7302, lng: 122.5591 });
-	const [queryRadius, setQueryRadius] = useState<number>(50);
 	const [seismicMarkers, setSeismicMarkers] = useState<google.maps.Marker[]>([]);
 	
 	const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -650,8 +650,7 @@ export function InteractiveMap() {
 	const [animationFrame, setAnimationFrame] = useState(0);
 	const [landslideMarkers, setLandslideMarkers] = useState<google.maps.Marker[]>([]);
     const [fireMarkers, setFireMarkers] = useState<google.maps.Marker[]>([]);
-    const [seismicMarkers, setSeismicMarkers] = useState<google.maps.Marker[]>([]);
-	const [landslideZones, setLandslideZones] = useState<google.maps.Polygon[]>([]);
+    const [landslideZones, setLandslideZones] = useState<google.maps.Polygon[]>([]);
 	const [fireZones, setFireZones] = useState<google.maps.Polygon[]>([]);
 	const [energyZones, setEnergyZones] = useState<google.maps.Polygon[]>([]);
 	// Static barangay overlays
@@ -1090,6 +1089,7 @@ export function InteractiveMap() {
 
 	// Google Maps API key must come from environment variables
 	const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ""
+	const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_BASE_URL || 'http://localhost:5000'
 	const isValidApiKey = typeof GOOGLE_MAPS_API_KEY === 'string' && GOOGLE_MAPS_API_KEY.length > 0
 
 	// Test the API key validity
@@ -1809,6 +1809,27 @@ export function InteractiveMap() {
 	const refreshWeatherData = () => {
 		if (selectedLocation) {
 			fetchWeatherData(selectedLocation.lat, selectedLocation.lng)
+		}
+	}
+
+	// Load all backend datasets in parallel
+	const fetchBackendData = async () => {
+		try {
+			setIsLoadingBackendData(true)
+			await Promise.all([
+				// Flood polygons (global)
+				fetchFloodData(),
+				// Landslides near current map center
+				fetchLandslideData(currentMapCenter.lat, currentMapCenter.lng, queryRadius),
+				// Recent seismic events
+				fetchSeismicData(),
+				// Weather near current map center
+				fetchWeatherData(currentMapCenter.lat, currentMapCenter.lng)
+			])
+		} catch (error) {
+			console.error('Error loading backend datasets:', error)
+		} finally {
+			setIsLoadingBackendData(false)
 		}
 	}
 
