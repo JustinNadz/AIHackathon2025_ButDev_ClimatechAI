@@ -217,7 +217,7 @@ const MapComponent = () => {
             </span>
           </div>
 
-          {/* Emergency Reports */}
+          {/* Reports */}
           <div style={{
             padding: '12px 20px',
             cursor: 'pointer',
@@ -231,42 +231,7 @@ const MapComponent = () => {
               fontWeight: '500',
               color: '#4a5568'
             }}>
-              Emergency Reports
-            </span>
-          </div>
-
-          {/* Additional Navigation Items */}
-          <div style={{
-            padding: '12px 20px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            transition: 'all 0.2s'
-          }}>
-            <span style={{ marginRight: '12px', fontSize: '16px' }}>⚙️</span>
-            <span style={{
-              fontSize: '14px',
-              fontWeight: '500',
-              color: '#4a5568'
-            }}>
-              System Management
-            </span>
-          </div>
-
-          <div style={{
-            padding: '12px 20px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            transition: 'all 0.2s'
-          }}>
-            <span style={{ marginRight: '12px', fontSize: '16px' }}>❓</span>
-            <span style={{
-              fontSize: '14px',
-              fontWeight: '500',
-              color: '#4a5568'
-            }}>
-              Help & Support
+              Reports
             </span>
           </div>
         </div>
