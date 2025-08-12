@@ -102,11 +102,6 @@ def call_openrouter(user_input: str) -> Dict[str, Any]:
 
 # Example usage with system prompt
 if __name__ == "__main__":
-    # Example system prompt for climate/weather analysis
-    system_prompt = """You are a helpful AI assistant specialized in climate and weather analysis. 
-    Provide clear, concise responses about weather patterns, climate data, and environmental information.
-    Always respond in a professional but accessible manner."""
-    
     # Test the function
     user_input = "What are the current weather conditions in Iloilo City?"
     result = call_openrouter(user_input)
