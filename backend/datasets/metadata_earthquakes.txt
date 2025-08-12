@@ -1,0 +1,11 @@
+The Institute's National Earthquake Monitoring and Information aims to provide accurate and timely information on significant earthquakes and tsunami events that may significantlly impact the Philippines; and to ensure the accessibility and integrity of earthquake data. Earthquake monitoring in the country has been enhanced with the operation of ninety two (92) Seismic Network, ten (10) Seismic Stations of which were commissioned in 2016. With 64 stations in 2010, PHIVOLCS-DOST surpassed its target of establishing an 85-station network by end of 2016.
+
+PHIVOLCS Earthquake Bulletins of latest seismic events in the Philippines are listed below. The event parameters (hypocenter, time and magnitude) are determined using incoming data from the Philippine Seismic Network. Philippine Standard Time (PST) is eight hours ahead of Coordinated Universal Time (UTC). (PST = UTC + 8H) UTC is the time standard for which the world regulates clocks and time. Earthquakes in this list with their date and time in blue have reported
+
+Columns
+Date_Time_PH (format = 2025-07-31 23:50:00)
+Latitude (float)
+Longitude (float)
+Depth_In_Km (float)
+Magnitude (float)
+Location (string describing)
