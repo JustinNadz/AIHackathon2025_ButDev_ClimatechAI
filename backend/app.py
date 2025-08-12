@@ -272,6 +272,85 @@ def enhanced_assistant():
 
         print(f"🤖 Enhanced Assistant Request: {question} at ({lat:.5f}, {lng:.5f})")
 
+        # Fast greeting detection for quick responses
+        greeting_words = ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "greetings", "hola", "bonjour"]
+        question_lower = question.lower().strip()
+        
+        # Check if the question is a simple greeting
+        is_greeting = any(greeting in question_lower for greeting in greeting_words) and len(question.split()) <= 3
+        
+        # Check for questions about development/creator
+        developer_keywords = ["who developed", "who created", "who made", "who built", "your developer", "your creator", "who are you made by", "development team", "your team"]
+        is_developer_question = any(keyword in question_lower for keyword in developer_keywords)
+        
+        if is_greeting:
+            # Provide fast greeting response
+            greeting_response = """Hi there! 👋 I'm ClimatechAI, your personal climate and disaster preparedness assistant for the Philippines.
+
+I was developed by the **ButDev Team** for the **AI Hackathon 2025** to help keep you safe from natural disasters and climate risks.
+
+I can help you with:
+🌊 Flood risk assessment and safety tips
+🏔️ Landslide hazard information  
+🌋 Earthquake monitoring and preparedness
+🌤️ Weather-based risk analysis
+🚨 Emergency preparedness guidance
+
+Feel free to ask me about climate risks at your location, or click anywhere on the map to get a detailed safety assessment for that area!
+
+How can I help keep you safe today?"""
+            
+            return jsonify({
+                "location": {"lat": lat, "lng": lng},
+                "question": question,
+                "hazards": {
+                    "flood_risk": None,
+                    "landslide_risk": None,
+                    "recent_earthquakes": 0,
+                    "earthquake_details": [],
+                    "weather": None,
+                },
+                "response": greeting_response,
+                "model_used": "fast_greeting_response",
+                "context_provided": [f"📍 Location: {lat:.5f}, {lng:.5f}", "🚀 Fast greeting response - no hazard data needed"],
+                "timestamp": json.loads(json.dumps({"timestamp": None}, default=str))
+            })
+        
+        if is_developer_question:
+            # Provide fast developer information response
+            developer_response = """I am **ClimatechAI**, an advanced climate and disaster preparedness assistant specifically designed for the Philippines! 🇵🇭
+
+**👥 Development Team:** I was created by the **ButDev Team** as part of the **AI Hackathon 2025**
+
+**🎯 My Mission:** To help protect lives and communities by providing real-time climate risk assessments, disaster preparedness guidance, and location-specific safety recommendations.
+
+**🚀 My Capabilities:**
+- Real-time flood, landslide, and earthquake risk analysis
+- Weather-based hazard assessment  
+- Emergency preparedness planning
+- Location-specific safety recommendations
+- Integration with Philippine disaster data sources
+
+**🌟 What makes me special:** I combine cutting-edge AI technology with comprehensive Philippine disaster data to provide you with the most accurate and actionable safety information possible.
+
+The ButDev Team built me to be your trusted companion in staying safe from natural disasters. How can I help protect you today?"""
+            
+            return jsonify({
+                "location": {"lat": lat, "lng": lng},
+                "question": question,
+                "hazards": {
+                    "flood_risk": None,
+                    "landslide_risk": None,
+                    "recent_earthquakes": 0,
+                    "earthquake_details": [],
+                    "weather": None,
+                },
+                "response": developer_response,
+                "model_used": "fast_developer_response",
+                "context_provided": [f"📍 Location: {lat:.5f}, {lng:.5f}", "🚀 Fast developer info response - no hazard data needed"],
+                "timestamp": json.loads(json.dumps({"timestamp": None}, default=str))
+            })
+
         # Get real-time hazard data
         db = SessionLocal()
         flood_risk = get_flood_risk_at_point(db, latitude=lat, longitude=lng)
@@ -333,6 +412,8 @@ def enhanced_assistant():
         # Create the system prompt for the base model
         system_prompt = """You are ClimatechAI, an expert environmental and disaster preparedness assistant for the Philippines. 
 
+You were developed by the ButDev Team for the AI Hackathon 2025 to help protect lives and communities from natural disasters and climate risks.
+
 Your role is to:
 1. Analyze climate and natural disaster risks
 2. Provide practical, actionable safety recommendations
@@ -347,6 +428,7 @@ Guidelines:
 - Consider Filipino context (climate, geography, culture)
 - If evacuation might be needed, be specific about preparation steps
 - Always consider multiple hazard interactions (e.g., earthquakes + landslides)
+- If asked about your development, mention you were created by ButDev Team for AI Hackathon 2025
 
 Response format:
 - Start with immediate safety assessment
