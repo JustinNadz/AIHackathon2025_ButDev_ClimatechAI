@@ -4,7 +4,6 @@ import { DashboardLayout } from "@/components/dashboard-layout"
 import { StatusCards } from "@/components/status-cards"
 import { InteractiveMap } from "@/components/interactive-map"
 
-import { AIForecastingPanel } from "@/components/ai-forecasting-panel"
 import { useState } from "react"
 import VoiceAssistant from "@/components/VoiceAssistant"
 import { EmergencyAlerts } from "@/components/emergency-alerts"
