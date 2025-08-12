@@ -4,7 +4,11 @@ from db.queries import (
     get_landslide_data_by_risk,
     get_recent_weather_data,
     get_recent_earthquakes,
-    get_earthquakes_by_magnitude
+    get_earthquakes_by_magnitude,
+    get_flood_risk_at_point,
+    get_landslide_risk_at_point,
+    get_recent_earthquakes_nearby,
+    get_nearest_recent_weather
 )
 from vectordb.ingest import add_documents
 from db.setup import setup_database
@@ -32,6 +36,122 @@ def ingest():
         return jsonify({"error": "No texts provided"}), 400
     count = add_documents(texts)
     return jsonify({"message": f"Added {count} chunks"})
+
+
+# ============================================================================
+# ASSISTANT ENDPOINT
+# ============================================================================
+
+@app.route("/api/assistant", methods=["POST"])
+def assistant():
+    """AI assistant: assess risks and provide recommendations for a given location.
+
+    Request JSON:
+      { "lat": number, "lng": number }
+    Optional parameters:
+      hours_earthquake: int (default 24)
+      eq_radius_km: float (default 100)
+      weather_hours: int (default 3)
+      weather_radius_km: float (default 100)
+    """
+    db = None
+    try:
+        payload = request.get_json(force=True) or {}
+        lat = payload.get("lat")
+        lng = payload.get("lng")
+        if lat is None or lng is None:
+            return jsonify({"error": "lat and lng are required"}), 400
+
+        hours_earthquake = int(payload.get("hours_earthquake", 24))
+        eq_radius_km = float(payload.get("eq_radius_km", 100.0))
+        weather_hours = int(payload.get("weather_hours", 3))
+        weather_radius_km = float(payload.get("weather_radius_km", 100.0))
+
+        db = SessionLocal()
+
+        # Spatial checks
+        flood_risk = get_flood_risk_at_point(db, latitude=lat, longitude=lng)
+        landslide_risk = get_landslide_risk_at_point(db, latitude=lat, longitude=lng)
+        recent_eq = get_recent_earthquakes_nearby(db, latitude=lat, longitude=lng, hours=hours_earthquake, max_km=eq_radius_km)
+        nearest_weather = get_nearest_recent_weather(db, latitude=lat, longitude=lng, hours=weather_hours, max_km=weather_radius_km)
+
+        # Heat assessment from weather
+        heat_category = "unknown"
+        if nearest_weather and nearest_weather.get("temperature") is not None and nearest_weather.get("humidity") is not None:
+            t = nearest_weather["temperature"]
+            rh = nearest_weather["humidity"]
+            # Simple heat risk categorization
+            if t >= 40 or (t >= 35 and rh >= 60):
+                heat_category = "extreme"
+            elif t >= 35 or (t >= 32 and rh >= 60):
+                heat_category = "high"
+            elif t >= 30:
+                heat_category = "moderate"
+            else:
+                heat_category = "low"
+
+        # Recommendation logic
+        recommendations = []
+
+        def risk_label(val):
+            if val is None:
+                return "none"
+            if val <= 1.5:
+                return "low"
+            elif val <= 2.5:
+                return "medium"
+            return "high"
+
+        flood_label = risk_label(flood_risk)
+        landslide_label = risk_label(landslide_risk)
+
+        if flood_label == "high":
+            recommendations.append("You are in a high flood-risk area. Prepare emergency kit, move valuables to higher levels, and be ready to evacuate.")
+        elif flood_label == "medium":
+            recommendations.append("Medium flood risk detected. Monitor local advisories, identify evacuation routes, and secure important documents.")
+
+        if landslide_label == "high":
+            recommendations.append("High landslide risk area. Avoid steep slopes, monitor cracks/soil movement, and prepare to evacuate if heavy rains persist.")
+        elif landslide_label == "medium":
+            recommendations.append("Moderate landslide risk. Stay alert during prolonged rainfall and avoid unstable slopes.")
+
+        if recent_eq:
+            strongest = max(recent_eq, key=lambda e: (e["magnitude"] or 0))
+            nearest = min(recent_eq, key=lambda e: (e["distance_km"] or 1e9))
+            recommendations.append(
+                f"Recent earthquake detected (M{strongest['magnitude']:.1f}) within {nearest['distance_km']:.1f} km. Check building integrity and aftershock advisories."
+            )
+
+        if nearest_weather:
+            if (nearest_weather.get("rainfall") or 0) >= 10:
+                recommendations.append("Heavy rain conditions nearby. Avoid flood-prone roads and monitor river levels.")
+            if heat_category in ("high", "extreme"):
+                recommendations.append("Heat risk elevated. Stay hydrated, avoid outdoor exertion at midday, and check on vulnerable individuals.")
+
+        # Escalation to evacuation
+        if flood_label == "high" or landslide_label == "high":
+            recommendations.append("Consider evacuating to a safe shelter if conditions worsen or upon local authority guidance.")
+
+        response = {
+            "location": {"lat": lat, "lng": lng},
+            "assessments": {
+                "flood": {"risk_level": flood_risk, "category": flood_label},
+                "landslide": {"risk_level": landslide_risk, "category": landslide_label},
+                "earthquakes_recent": recent_eq,
+                "weather_nearest": nearest_weather,
+                "heat_category": heat_category,
+            },
+            "recommendations": recommendations or ["No immediate hazards detected. Maintain basic preparedness and follow local advisories."],
+        }
+
+        return jsonify(response)
+    except Exception as e:
+        print(f"❌ Error in assistant endpoint: {e}")
+        print(f"📋 Traceback: {traceback.format_exc()}")
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+    finally:
+        if db:
+            db.close()
 
 
 # ============================================================================

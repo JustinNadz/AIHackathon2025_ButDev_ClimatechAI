@@ -158,3 +158,116 @@ def get_recent_weather_data(db: Session, hours: int = 1):
     return db.query(WeatherData).filter(
         WeatherData.recorded_at >= cutoff_time
     ).order_by(WeatherData.recorded_at.desc()).all()
+
+
+# ============================================================================
+# ASSISTANT SUPPORT QUERIES (spatial checks and nearest lookups)
+# ============================================================================
+
+
+def get_flood_risk_at_point(db: Session, latitude: float, longitude: float):
+    """Return the maximum flood risk_level at a given point, or None if outside flood zones."""
+    query = text(
+        """
+        SELECT MAX(risk_level) AS max_risk
+        FROM flood_data
+        WHERE ST_Intersects(
+            geometry,
+            ST_SetSRID(ST_Point(:lng, :lat), 4326)
+        )
+        """
+    )
+    result = db.execute(query, {"lat": latitude, "lng": longitude}).fetchone()
+    return float(result[0]) if result and result[0] is not None else None
+
+
+def get_landslide_risk_at_point(db: Session, latitude: float, longitude: float):
+    """Return the maximum landslide risk_level at a given point, or None if outside zones."""
+    query = text(
+        """
+        SELECT MAX(risk_level) AS max_risk
+        FROM landslide_data
+        WHERE ST_Intersects(
+            geometry,
+            ST_SetSRID(ST_Point(:lng, :lat), 4326)
+        )
+        """
+    )
+    result = db.execute(query, {"lat": latitude, "lng": longitude}).fetchone()
+    return float(result[0]) if result and result[0] is not None else None
+
+
+def get_recent_earthquakes_nearby(db: Session, latitude: float, longitude: float, hours: int = 24, max_km: float = 100.0):
+    """Return recent earthquakes within max_km of the point in the last N hours, with distance."""
+    from datetime import timedelta
+    cutoff_time = datetime.now() - timedelta(hours=hours)
+
+    query = text(
+        """
+        SELECT 
+            id,
+            magnitude,
+            depth,
+            event_time,
+            ST_Distance(geometry::geography, ST_SetSRID(ST_Point(:lng, :lat), 4326)::geography) / 1000.0 AS distance_km
+        FROM earthquake_data
+        WHERE event_time IS NOT NULL
+          AND event_time >= :cutoff
+          AND ST_DWithin(geometry::geography, ST_SetSRID(ST_Point(:lng, :lat), 4326)::geography, :max_meters)
+        ORDER BY distance_km ASC, event_time DESC
+        """
+    )
+    rows = db.execute(query, {"lat": latitude, "lng": longitude, "cutoff": cutoff_time, "max_meters": max_km * 1000.0}).fetchall()
+    return [
+        {
+            "id": r[0],
+            "magnitude": float(r[1]) if r[1] is not None else None,
+            "depth": float(r[2]) if r[2] is not None else None,
+            "event_time": r[3].isoformat() if r[3] else None,
+            "distance_km": float(r[4]) if r[4] is not None else None,
+        }
+        for r in rows
+    ]
+
+
+def get_nearest_recent_weather(db: Session, latitude: float, longitude: float, hours: int = 3, max_km: float = 100.0):
+    """Return the nearest recent weather station data within max_km in the last N hours."""
+    from datetime import timedelta
+    cutoff_time = datetime.now() - timedelta(hours=hours)
+
+    query = text(
+        """
+        SELECT 
+            id,
+            temperature,
+            humidity,
+            rainfall,
+            wind_speed,
+            wind_direction,
+            pressure,
+            station_name,
+            recorded_at,
+            ST_Distance(geometry::geography, ST_SetSRID(ST_Point(:lng, :lat), 4326)::geography) / 1000.0 AS distance_km
+        FROM weather_data
+        WHERE recorded_at IS NOT NULL
+          AND recorded_at >= :cutoff
+          AND ST_DWithin(geometry::geography, ST_SetSRID(ST_Point(:lng, :lat), 4326)::geography, :max_meters)
+        ORDER BY distance_km ASC, recorded_at DESC
+        LIMIT 1
+        """
+    )
+    row = db.execute(query, {"lat": latitude, "lng": longitude, "cutoff": cutoff_time, "max_meters": max_km * 1000.0}).fetchone()
+    if not row:
+        return None
+    return {
+        "id": row[0],
+        "temperature": float(row[1]) if row[1] is not None else None,
+        "humidity": float(row[2]) if row[2] is not None else None,
+        "rainfall": float(row[3]) if row[3] is not None else None,
+        "wind_speed": float(row[4]) if row[4] is not None else None,
+        "wind_direction": float(row[5]) if row[5] is not None else None,
+        "pressure": float(row[6]) if row[6] is not None else None,
+        "station_name": row[7],
+        "recorded_at": row[8].isoformat() if row[8] else None,
+        "distance_km": float(row[9]) if row[9] is not None else None,
+    }
