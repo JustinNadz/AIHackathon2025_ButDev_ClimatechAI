@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Cloud, Activity, Zap, Mic } from "lucide-react"
+import { Cloud, Activity, Mic } from "lucide-react"
 import Link from "next/link"
 
 interface WeatherAnalysis {
@@ -25,7 +25,6 @@ export function StatusCards() {
   });
 
   const [isLoading, setIsLoading] = useState(false);
-  const [assistantOpen, setAssistantOpen] = useState(false)
 
   const fetchWeatherData = async () => {
     setIsLoading(true);
@@ -101,19 +100,7 @@ export function StatusCards() {
         </CardContent>
       </Card>
 
-      <Card className="border-blue-200">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-blue-700">Power System Status</CardTitle>
-          <Zap className="h-4 w-4 text-blue-600" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-blue-900">98.5%</div>
-          <p className="text-xs text-blue-600">Grid stability, 2 minor outages</p>
-          <Badge className="mt-2 bg-green-100 text-green-800">Operational</Badge>
-        </CardContent>
-      </Card>
-
-      <Card className="border-blue-200">
+      <Card className="border-blue-200 w-full">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-blue-700">Voice Assistant</CardTitle>
         </CardHeader>

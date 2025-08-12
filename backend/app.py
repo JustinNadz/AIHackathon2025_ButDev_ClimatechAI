@@ -9,7 +9,14 @@ from db.queries import (
     get_flood_risk_at_point,
     get_landslide_risk_at_point,
     get_recent_earthquakes_nearby,
-    get_nearest_recent_weather
+    get_nearest_recent_weather,
+    get_landslide_data_nearby,
+    get_all_emergency_protocols,
+    get_emergency_protocol_by_id,
+    get_emergency_protocols_by_type,
+    create_emergency_protocol,
+    update_emergency_protocol,
+    delete_emergency_protocol
 )
 from vectordb.ingest import add_documents
 from ai.rag import answer_with_rag
@@ -25,6 +32,7 @@ from datetime import datetime
 setup_database()
 
 app = Flask(__name__, static_folder='static')
+CORS(app)  # Enable CORS for all routes
 
 # Enable CORS for all routes
 CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000"])
@@ -905,6 +913,9 @@ def get_landslide_data():
     db = None
     try:
         print("🏔️ Starting landslide data request...")
+        print(f"🔗 Request URL: {request.url}")
+        print(f"📋 Request headers: {dict(request.headers)}")
+        
         db = SessionLocal()
         
         # Get query parameters
@@ -912,12 +923,31 @@ def get_landslide_data():
         max_risk = request.args.get('max_risk', type=float)
         limit = request.args.get('limit', 1000, type=int)
         
+        # Get nearby query parameters
+        lat = request.args.get('lat', type=float)
+        lng = request.args.get('lng', type=float)
+        radius_km = request.args.get('radius_km', 50.0, type=float)
+        
         print(f"📊 Query params: min_risk={min_risk}, max_risk={max_risk}, limit={limit}")
+        print(f"📍 Nearby params: lat={lat}, lng={lng}, radius_km={radius_km}")
         
         # Query landslide data
         print("🗄️ Querying landslide data from database...")
-        landslide_data = get_landslide_data_by_risk(db, min_risk=min_risk, max_risk=max_risk)
-        print(f"✅ Found {len(landslide_data)} landslide data records")
+        try:
+            # Use nearby query if lat/lng provided, otherwise use risk-based query
+            if lat is not None and lng is not None:
+                print(f"🗺️ Using nearby query around ({lat}, {lng}) with radius {radius_km}km")
+                landslide_data = get_landslide_data_nearby(db, lat, lng, radius_km, min_risk, max_risk)
+            else:
+                print("📊 Using risk-based query")
+                landslide_data = get_landslide_data_by_risk(db, min_risk=min_risk, max_risk=max_risk)
+            
+            print(f"✅ Found {len(landslide_data)} landslide data records")
+            print(f"📋 Data types: {[type(item) for item in landslide_data[:3]]}")
+        except Exception as query_error:
+            print(f"❌ Database query error: {query_error}")
+            print(f"📋 Query error traceback: {traceback.format_exc()}")
+            return jsonify({"error": f"Database query failed: {str(query_error)}"}), 500
         
         if not landslide_data:
             return jsonify({
@@ -933,32 +963,49 @@ def get_landslide_data():
             try:
                 print(f"🔄 Processing landslide record {i+1}/{min(len(landslide_data), limit)}")
                 
-                # Convert WKT to GeoJSON coordinates using engine connection
-                with engine.connect() as conn:
-                    result = conn.execute(text(f"SELECT ST_AsGeoJSON(geometry) FROM landslide_data WHERE id = {data.id}"))
-                    geojson_result = result.fetchone()
+                # Handle different data formats (ORM objects vs raw query results)
+                if hasattr(data, 'id') and hasattr(data, 'risk_level'):
+                    # ORM object format (from get_landslide_data_by_risk)
+                    record_id = data.id
+                    risk_level = data.risk_level
                     
-                    if geojson_result is None or geojson_result[0] is None:
-                        print(f"⚠️ No geometry found for landslide record {data.id}")
-                        continue
-                    
-                    geojson = geojson_result[0]
-                    geometry = json.loads(geojson)
+                    # Convert WKT to GeoJSON coordinates using engine connection
+                    with engine.connect() as conn:
+                        result = conn.execute(text(f"SELECT ST_AsGeoJSON(geometry) FROM landslide_data WHERE id = {record_id}"))
+                        geojson_result = result.fetchone()
+                        
+                        if geojson_result is None or geojson_result[0] is None:
+                            print(f"⚠️ No geometry found for landslide record {record_id}")
+                            continue
+                        
+                        geojson = geojson_result[0]
+                        geometry = json.loads(geojson)
+                else:
+                    # Raw query result format (from get_landslide_data_nearby)
+                    record_id = data[0]  # id
+                    risk_level = data[1]  # risk_level
+                    geometry = json.loads(data[2])  # geometry_json
+                    distance_km = data[3]  # distance_km
                 
                 feature = {
                     "type": "Feature",
                     "geometry": geometry,
                     "properties": {
-                        "id": data.id,
-                        "risk_level": float(data.risk_level),
-                        "risk_category": get_risk_category(data.risk_level),
+                        "id": record_id,
+                        "risk_level": float(risk_level),
+                        "risk_category": get_risk_category(risk_level),
                         "data_type": "landslide"
                     }
                 }
+                
+                # Add distance if available (from nearby query)
+                if 'distance_km' in locals():
+                    feature["properties"]["distance_km"] = float(distance_km)
+                
                 features.append(feature)
                 
             except Exception as e:
-                print(f"❌ Error processing landslide record {data.id}: {e}")
+                print(f"❌ Error processing landslide record {i}: {e}")
                 continue
         
         print(f"✅ Successfully processed {len(features)} landslide features")
@@ -969,7 +1016,19 @@ def get_landslide_data():
             "total": len(features)
         }
         
-        return jsonify(geojson_response)
+        print(f"📦 Response structure: {list(geojson_response.keys())}")
+        print(f"📦 Features count in response: {len(geojson_response['features'])}")
+        print(f"📦 Response type: {type(geojson_response)}")
+        
+        try:
+            response = jsonify(geojson_response)
+            print(f"✅ JSON response created successfully")
+            print(f"📦 Response content length: {len(response.get_data())}")
+            return response
+        except Exception as json_error:
+            print(f"❌ JSON serialization error: {json_error}")
+            print(f"📋 JSON error traceback: {traceback.format_exc()}")
+            return jsonify({"error": f"JSON serialization failed: {str(json_error)}"}), 500
         
     except Exception as e:
         print(f"❌ Error in get_landslide_data: {e}")
@@ -980,6 +1039,47 @@ def get_landslide_data():
         if db:
             db.close()
 
+
+@app.route("/api/debug/landslide", methods=["GET"])
+def debug_landslide():
+    """Debug endpoint to check landslide data"""
+    db = None
+    try:
+        print("🔍 Debug landslide data...")
+        db = SessionLocal()
+        
+        # Check if table exists
+        with engine.connect() as conn:
+            try:
+                result = conn.execute(text("SELECT COUNT(*) FROM landslide_data"))
+                total_count = result.fetchone()[0]
+                print(f"📈 Total landslide records: {total_count}")
+                
+                if total_count > 0:
+                    # Get sample data
+                    sample = conn.execute(text("SELECT id, risk_level FROM landslide_data LIMIT 3"))
+                    samples = sample.fetchall()
+                    print(f"📋 Sample records: {samples}")
+                
+                return jsonify({
+                    "table_exists": True,
+                    "total_records": total_count,
+                    "sample_records": [{"id": row[0], "risk_level": float(row[1])} for row in samples] if total_count > 0 else []
+                })
+                
+            except Exception as e:
+                print(f"❌ Table check error: {e}")
+                return jsonify({
+                    "table_exists": False,
+                    "error": str(e)
+                })
+                
+    except Exception as e:
+        print(f"❌ Debug error: {e}")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if db:
+            db.close()
 
 @app.route("/api/landslide-data/stats", methods=["GET"])
 def get_landslide_stats():
@@ -1572,6 +1672,255 @@ def get_frontend_cities_weather():
         
     except Exception as e:
         print(f"❌ Error in get_frontend_cities_weather: {e}")
+        print(f"📋 Traceback: {traceback.format_exc()}")
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+    
+    finally:
+        if db:
+            db.close()
+
+
+# ============================================================================
+# EMERGENCY PROTOCOLS ENDPOINTS
+# ============================================================================
+
+@app.route("/api/emergency/protocols", methods=["GET"])
+def get_emergency_protocols():
+    """Get all emergency protocols with optional filtering"""
+    db = None
+    try:
+        print("🚨 Getting emergency protocols...")
+        db = SessionLocal()
+        
+        # Get query parameters
+        status = request.args.get('status')
+        protocol_type = request.args.get('type')
+        
+        print(f"📊 Query params: status={status}, type={protocol_type}")
+        
+        # Query protocols based on parameters
+        if protocol_type:
+            protocols = get_emergency_protocols_by_type(db, protocol_type, status or 'active')
+        else:
+            protocols = get_all_emergency_protocols(db, status)
+        
+        print(f"✅ Found {len(protocols)} emergency protocols")
+        
+        # Convert to JSON-serializable format
+        protocols_data = []
+        for protocol in protocols:
+            protocols_data.append({
+                "id": protocol.id,
+                "name": protocol.name,
+                "type": protocol.type,
+                "description": protocol.description,
+                "steps": protocol.steps or [],
+                "status": protocol.status,
+                "created_at": protocol.created_at.isoformat() if protocol.created_at else None,
+                "updated_at": protocol.updated_at.isoformat() if protocol.updated_at else None
+            })
+        
+        return jsonify({
+            "protocols": protocols_data,
+            "total": len(protocols_data)
+        })
+        
+    except Exception as e:
+        print(f"❌ Error in get_emergency_protocols: {e}")
+        print(f"📋 Traceback: {traceback.format_exc()}")
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+    
+    finally:
+        if db:
+            db.close()
+
+
+@app.route("/api/emergency/protocols", methods=["POST"])
+def create_protocol():
+    """Create a new emergency protocol"""
+    db = None
+    try:
+        print("🚨 Creating new emergency protocol...")
+        payload = request.get_json(force=True) or {}
+        
+        # Validate required fields
+        if not payload.get("name"):
+            return jsonify({"error": "name is required"}), 400
+        if not payload.get("type"):
+            return jsonify({"error": "type is required"}), 400
+        
+        db = SessionLocal()
+        
+        # Create the protocol
+        protocol = create_emergency_protocol(
+            db=db,
+            name=payload["name"],
+            protocol_type=payload["type"],
+            description=payload.get("description"),
+            steps=payload.get("steps", []),
+            status=payload.get("status", "active")
+        )
+        
+        print(f"✅ Created emergency protocol with ID: {protocol.id}")
+        
+        # Return the created protocol
+        protocol_data = {
+            "id": protocol.id,
+            "name": protocol.name,
+            "type": protocol.type,
+            "description": protocol.description,
+            "steps": protocol.steps or [],
+            "status": protocol.status,
+            "created_at": protocol.created_at.isoformat() if protocol.created_at else None,
+            "updated_at": protocol.updated_at.isoformat() if protocol.updated_at else None
+        }
+        
+        return jsonify({
+            "message": "Emergency protocol created successfully",
+            "protocol": protocol_data
+        }), 201
+        
+    except Exception as e:
+        print(f"❌ Error in create_protocol: {e}")
+        print(f"📋 Traceback: {traceback.format_exc()}")
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+    
+    finally:
+        if db:
+            db.close()
+
+
+@app.route("/api/emergency/protocols/<int:protocol_id>", methods=["GET"])
+def get_protocol_by_id(protocol_id):
+    """Get a specific emergency protocol by ID"""
+    db = None
+    try:
+        print(f"🚨 Getting emergency protocol with ID: {protocol_id}")
+        db = SessionLocal()
+        
+        protocol = get_emergency_protocol_by_id(db, protocol_id)
+        
+        if not protocol:
+            return jsonify({"error": "Emergency protocol not found"}), 404
+        
+        print(f"✅ Found emergency protocol: {protocol.name}")
+        
+        protocol_data = {
+            "id": protocol.id,
+            "name": protocol.name,
+            "type": protocol.type,
+            "description": protocol.description,
+            "steps": protocol.steps or [],
+            "status": protocol.status,
+            "created_at": protocol.created_at.isoformat() if protocol.created_at else None,
+            "updated_at": protocol.updated_at.isoformat() if protocol.updated_at else None
+        }
+        
+        return jsonify({"protocol": protocol_data})
+        
+    except Exception as e:
+        print(f"❌ Error in get_protocol_by_id: {e}")
+        print(f"📋 Traceback: {traceback.format_exc()}")
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+    
+    finally:
+        if db:
+            db.close()
+
+
+@app.route("/api/emergency/protocols/<int:protocol_id>", methods=["PUT"])
+def update_protocol(protocol_id):
+    """Update an existing emergency protocol"""
+    db = None
+    try:
+        print(f"🚨 Updating emergency protocol with ID: {protocol_id}")
+        payload = request.get_json(force=True) or {}
+        
+        db = SessionLocal()
+        
+        # Check if protocol exists
+        existing_protocol = get_emergency_protocol_by_id(db, protocol_id)
+        if not existing_protocol:
+            return jsonify({"error": "Emergency protocol not found"}), 404
+        
+        # Prepare update data
+        update_data = {}
+        if "name" in payload:
+            update_data["name"] = payload["name"]
+        if "type" in payload:
+            update_data["type"] = payload["type"]
+        if "description" in payload:
+            update_data["description"] = payload["description"]
+        if "steps" in payload:
+            update_data["steps"] = payload["steps"]
+        if "status" in payload:
+            update_data["status"] = payload["status"]
+        
+        # Update the protocol
+        updated_protocol = update_emergency_protocol(db, protocol_id, **update_data)
+        
+        if not updated_protocol:
+            return jsonify({"error": "Failed to update emergency protocol"}), 500
+        
+        print(f"✅ Updated emergency protocol: {updated_protocol.name}")
+        
+        protocol_data = {
+            "id": updated_protocol.id,
+            "name": updated_protocol.name,
+            "type": updated_protocol.type,
+            "description": updated_protocol.description,
+            "steps": updated_protocol.steps or [],
+            "status": updated_protocol.status,
+            "created_at": updated_protocol.created_at.isoformat() if updated_protocol.created_at else None,
+            "updated_at": updated_protocol.updated_at.isoformat() if updated_protocol.updated_at else None
+        }
+        
+        return jsonify({
+            "message": "Emergency protocol updated successfully",
+            "protocol": protocol_data
+        })
+        
+    except Exception as e:
+        print(f"❌ Error in update_protocol: {e}")
+        print(f"📋 Traceback: {traceback.format_exc()}")
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+    
+    finally:
+        if db:
+            db.close()
+
+
+@app.route("/api/emergency/protocols/<int:protocol_id>", methods=["DELETE"])
+def delete_protocol(protocol_id):
+    """Delete an emergency protocol"""
+    db = None
+    try:
+        print(f"🚨 Deleting emergency protocol with ID: {protocol_id}")
+        db = SessionLocal()
+        
+        # Check if protocol exists
+        existing_protocol = get_emergency_protocol_by_id(db, protocol_id)
+        if not existing_protocol:
+            return jsonify({"error": "Emergency protocol not found"}), 404
+        
+        # Delete the protocol
+        success = delete_emergency_protocol(db, protocol_id)
+        
+        if not success:
+            return jsonify({"error": "Failed to delete emergency protocol"}), 500
+        
+        print(f"✅ Deleted emergency protocol: {existing_protocol.name}")
+        
+        return jsonify({
+            "message": "Emergency protocol deleted successfully",
+            "deleted_protocol": {
+                "id": existing_protocol.id,
+                "name": existing_protocol.name
+            }
+        })
+        
+    except Exception as e:
+        print(f"❌ Error in delete_protocol: {e}")
         print(f"📋 Traceback: {traceback.format_exc()}")
         return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
     

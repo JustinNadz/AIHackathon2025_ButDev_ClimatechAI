@@ -6,9 +6,9 @@ import "./globals.css"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "ClimaTech AI - Disaster Management & Clean Energy Solution",
+  title: "ClimaTech AI - Disaster Management Solution",
   description:
-    "AI-powered disaster management and clean energy platform for the Philippines. Turning climate data into action.",
+    "AI-powered disaster management platform for the Philippines. Turning climate data into action.",
   generator: 'v0.dev',
   other: {
     'permissions-policy': 'clipboard-read=(self), clipboard-write=(self)'

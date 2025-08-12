@@ -46,4 +46,4 @@ class WeatherData(Base):
     weather_metadata = Column(JSON, nullable=True)  # Additional data like Filipino weather conditions
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    #change of user
+

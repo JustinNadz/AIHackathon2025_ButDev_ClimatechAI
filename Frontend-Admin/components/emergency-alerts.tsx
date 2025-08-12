@@ -45,7 +45,7 @@ export function EmergencyAlerts() {
   }
 
   return (
-    <Card className="border-blue-200 w-full overflow-hidden">
+    <Card className="border-blue-200 w-full h-full overflow-hidden">
       <CardHeader>
         <CardTitle className="text-blue-900 flex items-center">
           <AlertTriangle className="w-5 h-5 mr-2" />

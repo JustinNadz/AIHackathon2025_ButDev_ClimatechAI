@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from .models import (
     FloodData, EarthquakeData, LandslideData, 
-    WeatherData
+    WeatherData, EmergencyProtocol
 )
 from datetime import datetime
 
@@ -21,6 +21,19 @@ def add_flood_data(db: Session, geometry_wkt: str, risk_level: float):
     db.commit()
     db.refresh(flood_data)
     return flood_data
+
+
+def add_flood_data_batch(db: Session, flood_data_list: list):
+    """
+    Add multiple flood data records to the database in a single batch
+    
+    Args:
+        db: Database session
+        flood_data_list: List of FloodData objects to insert
+    """
+    db.add_all(flood_data_list)
+    db.commit()
+    return len(flood_data_list)
 
 
 def get_flood_data_by_risk(db: Session, min_risk: float = None, max_risk: float = None):
@@ -120,6 +133,51 @@ def get_landslide_data_by_risk(db: Session, min_risk: float = None, max_risk: fl
         query = query.filter(LandslideData.risk_level <= max_risk)
     
     return query.all()
+
+
+def get_landslide_data_nearby(db: Session, latitude: float, longitude: float, radius_km: float = 50.0, min_risk: float = None, max_risk: float = None):
+    """Get landslide data within radius_km of a point, optionally filtered by risk level"""
+    query = text(
+        """
+        SELECT 
+            id,
+            risk_level,
+            ST_AsGeoJSON(geometry) as geometry_json,
+            ST_Distance(geometry::geography, ST_SetSRID(ST_Point(:lng, :lat), 4326)::geography) / 1000.0 AS distance_km
+        FROM landslide_data
+        WHERE ST_DWithin(
+            geometry::geography, 
+            ST_SetSRID(ST_Point(:lng, :lat), 4326)::geography, 
+            :radius_meters
+        )
+        """
+    )
+    
+    # Add risk level filters if provided
+    risk_conditions = []
+    params = {
+        "lat": latitude, 
+        "lng": longitude, 
+        "radius_meters": radius_km * 1000.0
+    }
+    
+    if min_risk is not None:
+        risk_conditions.append("risk_level >= :min_risk")
+        params["min_risk"] = min_risk
+    
+    if max_risk is not None:
+        risk_conditions.append("risk_level <= :max_risk")
+        params["max_risk"] = max_risk
+    
+    if risk_conditions:
+        query_text = str(query)
+        query_text += " AND " + " AND ".join(risk_conditions)
+        query = text(query_text)
+    
+    query = text(str(query) + " ORDER BY distance_km ASC")
+    
+    result = db.execute(query, params)
+    return result.fetchall()
 
 
 # ============================================================================
@@ -271,3 +329,76 @@ def get_nearest_recent_weather(db: Session, latitude: float, longitude: float, h
         "recorded_at": row[8].isoformat() if row[8] else None,
         "distance_km": float(row[9]) if row[9] is not None else None,
     }
+
+
+# ============================================================================
+# EMERGENCY PROTOCOLS QUERIES
+# ============================================================================
+
+def get_all_emergency_protocols(db: Session, status: str = None):
+    """Get all emergency protocols, optionally filtered by status"""
+    query = db.query(EmergencyProtocol)
+    
+    if status:
+        query = query.filter(EmergencyProtocol.status == status)
+    
+    return query.order_by(EmergencyProtocol.created_at.desc()).all()
+
+
+def get_emergency_protocol_by_id(db: Session, protocol_id: int):
+    """Get a specific emergency protocol by ID"""
+    return db.query(EmergencyProtocol).filter(EmergencyProtocol.id == protocol_id).first()
+
+
+def get_emergency_protocols_by_type(db: Session, protocol_type: str, status: str = 'active'):
+    """Get emergency protocols filtered by type and status"""
+    return db.query(EmergencyProtocol).filter(
+        EmergencyProtocol.type == protocol_type,
+        EmergencyProtocol.status == status
+    ).order_by(EmergencyProtocol.created_at.desc()).all()
+
+
+def create_emergency_protocol(db: Session, name: str, protocol_type: str, description: str = None, 
+                            steps: list = None, status: str = 'active'):
+    """Create a new emergency protocol"""
+    protocol = EmergencyProtocol(
+        name=name,
+        type=protocol_type,
+        description=description,
+        steps=steps or [],
+        status=status
+    )
+    db.add(protocol)
+    db.commit()
+    db.refresh(protocol)
+    return protocol
+
+
+def update_emergency_protocol(db: Session, protocol_id: int, **kwargs):
+    """Update an existing emergency protocol"""
+    protocol = db.query(EmergencyProtocol).filter(EmergencyProtocol.id == protocol_id).first()
+    if not protocol:
+        return None
+    
+    # Update only provided fields
+    for key, value in kwargs.items():
+        if hasattr(protocol, key):
+            setattr(protocol, key, value)
+    
+    # Always update the updated_at timestamp
+    protocol.updated_at = datetime.now()
+    
+    db.commit()
+    db.refresh(protocol)
+    return protocol
+
+
+def delete_emergency_protocol(db: Session, protocol_id: int):
+    """Delete an emergency protocol"""
+    protocol = db.query(EmergencyProtocol).filter(EmergencyProtocol.id == protocol_id).first()
+    if not protocol:
+        return False
+    
+    db.delete(protocol)
+    db.commit()
+    return True

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
-import { MapPin, Layers, Zap, Droplets, Mountain, Flame, Cloud, ArrowLeft, ChevronDown, Info } from "lucide-react"
+import { MapPin, Layers, Droplets, Mountain, Flame, Cloud, ArrowLeft, ChevronDown, Info } from "lucide-react"
 import dynamic from "next/dynamic"
 
 // Props for the AlphaEarth overlay component
@@ -567,18 +567,16 @@ const render = (status: Status): React.ReactElement => {
 };
 
 export function InteractiveMap() {
-  const [mapType, setMapType] = useState<'roadmap' | 'terrain' | 'satellite'>('satellite');
-  const [showLayers, setShowLayers] = useState(false);
-  const [showRiskZones, setShowRiskZones] = useState(true);
   const [selectedLocation, setSelectedLocation] = useState<{lat: number, lng: number}>({lat: 10.7302, lng: 122.5591});
-  const [locations, setLocations] = useState<WeatherData[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [selectedLayer, setSelectedLayer] = useState<string>("all");
   const [apiKeyStatus, setApiKeyStatus] = useState<'checking' | 'valid' | 'invalid' | 'billing-error'>('checking');
   const [googleMapsError, setGoogleMapsError] = useState<string | null>(null);
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [isLoadingWeather, setIsLoadingWeather] = useState(false);
+  const [isLoadingFloodData, setIsLoadingFloodData] = useState(false);
+  const [isLoadingLandslideData, setIsLoadingLandslideData] = useState(false);
+  const [isLoadingSeismicData, setIsLoadingSeismicData] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
@@ -597,10 +595,11 @@ export function InteractiveMap() {
   const [animationFrame, setAnimationFrame] = useState(0);
   const [landslideMarkers, setLandslideMarkers] = useState<google.maps.Marker[]>([]);
   const [fireMarkers, setFireMarkers] = useState<google.maps.Marker[]>([]);
-  const [energyMarkers, setEnergyMarkers] = useState<google.maps.Marker[]>([]);
   const [landslideZones, setLandslideZones] = useState<google.maps.Polygon[]>([]);
   const [fireZones, setFireZones] = useState<google.maps.Polygon[]>([]);
-  const [energyZones, setEnergyZones] = useState<google.maps.Polygon[]>([]);
+  const [seismicMarkers, setSeismicMarkers] = useState<google.maps.Marker[]>([]);
+  const [queryRadius, setQueryRadius] = useState<number>(50); // Default 50km radius for nearby queries
+  const [currentMapCenter, setCurrentMapCenter] = useState<{lat: number, lng: number}>({lat: 10.7302, lng: 122.5591});
 
   const getPolygonCentroid = (coords: google.maps.LatLngLiteral[]): google.maps.LatLngLiteral => {
     const { length } = coords;
@@ -671,27 +670,27 @@ export function InteractiveMap() {
   const legendItems: LegendItem[] = [
     {
       id: 'high-risk',
-      label: 'High Risk Areas',
-      color: '#ef4444',
+      label: 'High/Critical Risk',
+      color: '#FF0000',
       icon: 'triangle-alert',
       visible: true,
-      description: 'Areas with 70%+ flood probability'
+      description: 'High flood risk areas (red zones)'
     },
     {
       id: 'medium-risk',
-      label: 'Medium Risk Areas',
-      color: '#f59e0b',
+      label: 'Medium Risk',
+      color: '#FFA500',
       icon: 'triangle-alert',
       visible: true,
-      description: 'Areas with 40-70% flood probability'
+      description: 'Medium flood risk areas (orange zones)'
     },
     {
       id: 'low-risk',
-      label: 'Low Risk Areas',
-      color: '#22c55e',
+      label: 'Low Risk',
+      color: '#00FF00',
       icon: 'triangle-alert',
       visible: true,
-      description: 'Areas with <40% flood probability'
+      description: 'Low flood risk areas (green zones)'
     },
     {
       id: 'weather-stations',
@@ -856,12 +855,26 @@ export function InteractiveMap() {
   const riskZones = [
     { id: 1, name: "Iloilo River Basin", type: "flood", level: "high", lat: 10.7200, lng: 122.5500 },
     { id: 2, name: "Jaro District Hills", type: "landslide", level: "medium", lat: 10.7450, lng: 122.5650 },
-    { id: 3, name: "Iloilo Solar Farm", type: "energy", level: "active", lat: 10.7350, lng: 122.5750 },
-    { id: 4, name: "La Paz Fire Zone", type: "fire", level: "high", lat: 10.7150, lng: 122.5450 },
+    { id: 3, name: "La Paz Fire Zone", type: "fire", level: "high", lat: 10.7150, lng: 122.5450 },
   ]
   
   const handleMapLoad = useCallback((mapInstance: google.maps.Map) => {
      setMap(mapInstance)
+     
+     // Set initial map center
+     const center = mapInstance.getCenter()
+     if (center) {
+       setCurrentMapCenter({ lat: center.lat(), lng: center.lng() })
+     }
+     
+     // Listen for map center changes
+     mapInstance.addListener('center_changed', () => {
+       const newCenter = mapInstance.getCenter()
+       if (newCenter) {
+         setCurrentMapCenter({ lat: newCenter.lat(), lng: newCenter.lng() })
+       }
+     })
+     
      // Markers removed - only using polygons for flood zones
    }, [])
 
@@ -870,11 +883,433 @@ export function InteractiveMap() {
     { id: "weather", label: "Weather Data", icon: Cloud },
     { id: "flood", label: "Flood Risk", icon: Droplets },
     { id: "landslide", label: "Landslide Risk", icon: Mountain },
+    { id: "seismic", label: "Seismic Activity", icon: MapPin },
     { id: "fire", label: "Fire Risk", icon: Flame },
-    { id: "energy", label: "Energy", icon: Zap },
   ]
 
-  // Weather data fetching functions
+  // Backend API base URL
+  const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_BASE_URL || 'http://localhost:5000'
+
+  // Data fetching functions
+  const fetchFloodData = async () => {
+    try {
+      setIsLoadingFloodData(true)
+      console.log('🌊 Fetching flood data from backend...')
+      const response = await fetch(`${BACKEND_BASE_URL}/api/flood-data`)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      console.log(`✅ Fetched ${data.features?.length || 0} flood features`)
+      
+      if (data.features && data.features.length > 0) {
+        // Clear existing flood polygons
+        floodPolygons.forEach(polygon => polygon.setMap(null))
+        
+        const newPolygons: google.maps.Polygon[] = []
+        
+        data.features.forEach((feature: any) => {
+          let coordinates: google.maps.LatLngLiteral[] = []
+          
+          // Handle different geometry types
+          if (feature.geometry.type === 'Polygon' && feature.geometry.coordinates && feature.geometry.coordinates[0]) {
+            coordinates = feature.geometry.coordinates[0].map((coord: number[]) => ({
+              lat: Number(coord[1]),
+              lng: Number(coord[0])
+            }))
+          } else if (feature.geometry.type === 'MultiPolygon' && feature.geometry.coordinates) {
+            // For MultiPolygon, take the first polygon
+            if (feature.geometry.coordinates[0] && feature.geometry.coordinates[0][0]) {
+              coordinates = feature.geometry.coordinates[0][0].map((coord: number[]) => ({
+                lat: Number(coord[1]),
+                lng: Number(coord[0])
+              }))
+            }
+          }
+          
+          // Skip if no valid coordinates
+          if (coordinates.length < 3) {
+            console.warn('⚠️ Skipping flood feature - insufficient coordinates:', coordinates.length)
+            return
+          }
+          
+          // Validate coordinates are finite numbers
+          const validCoordinates = coordinates.filter(coord => 
+            isFinite(coord.lat) && isFinite(coord.lng)
+          )
+          
+          if (validCoordinates.length < 3) {
+            console.warn('⚠️ Skipping flood feature - invalid coordinates')
+            return
+          }
+          
+          coordinates = validCoordinates
+          
+          const riskLevel = feature.properties.risk_level
+          const riskCategory = feature.properties.risk_category || 'Unknown'
+          
+          // Color coding based on risk category
+          let color = '#00FF00' // Default green
+          let opacity = 0.3
+          
+          switch (riskCategory.toLowerCase()) {
+            case 'high':
+            case 'critical':
+              color = '#FF0000' // Red
+              opacity = 0.7
+              break
+            case 'medium':
+            case 'moderate':
+              color = '#FFA500' // Orange
+              opacity = 0.5
+              break
+            case 'low':
+            case 'minimal':
+              color = '#00FF00' // Green
+              opacity = 0.3
+              break
+            default:
+              // Fallback to numeric risk level
+              if (riskLevel >= 2.5) {
+                color = '#FF0000'
+                opacity = 0.7
+              } else if (riskLevel >= 1.5) {
+                color = '#FFA500'
+                opacity = 0.5
+              } else {
+                color = '#00FF00'
+                opacity = 0.3
+              }
+          }
+          
+          const polygon = new google.maps.Polygon({
+            paths: coordinates,
+            strokeColor: color,
+            strokeOpacity: 0.8,
+            strokeWeight: 2,
+            fillColor: color,
+            fillOpacity: opacity,
+            map: map || undefined
+          })
+          
+          // Add click listener for info window
+          polygon.addListener('click', (event: google.maps.MapMouseEvent) => {
+            if (currentInfoWindowRef.current) {
+              currentInfoWindowRef.current.close()
+            }
+            
+            const infoWindow = new google.maps.InfoWindow({
+              content: `
+                <div style="padding: 10px; max-width: 200px;">
+                  <h3 style="margin: 0 0 8px 0; color: #1f2937;">🌊 Flood Risk Zone</h3>
+                  <p style="margin: 4px 0; font-size: 14px;">
+                    <strong>Risk Category:</strong> 
+                    <span style="color: ${color}; font-weight: bold;">${riskCategory.toUpperCase()}</span>
+                  </p>
+                  <p style="margin: 4px 0; font-size: 14px;">
+                    <strong>Risk Level:</strong> ${feature.properties.risk_level.toFixed(1)}/3.0
+                  </p>
+                  <p style="margin: 4px 0; font-size: 12px; color: #6b7280;">
+                    ID: ${feature.properties.id}
+                  </p>
+                </div>
+              `,
+              position: event.latLng
+            })
+            
+            infoWindow.open(map)
+            currentInfoWindowRef.current = infoWindow
+          })
+          
+          newPolygons.push(polygon)
+        })
+        
+        setFloodPolygons(newPolygons)
+        console.log(`✅ Added ${newPolygons.length} flood polygons to map`)
+      }
+    } catch (error) {
+      console.error('❌ Error fetching flood data:', error)
+    } finally {
+      setIsLoadingFloodData(false)
+    }
+  }
+
+  const fetchLandslideData = async (lat?: number, lng?: number, radiusKm: number = 50) => {
+    try {
+      setIsLoadingLandslideData(true)
+      console.log('🏔️ Fetching landslide data from backend...')
+      
+      // Build URL with parameters
+      let url = `${BACKEND_BASE_URL}/api/landslide-data`
+      const params = new URLSearchParams()
+      
+      // Add nearby parameters if provided
+      if (lat !== undefined && lng !== undefined) {
+        params.append('lat', lat.toString())
+        params.append('lng', lng.toString())
+        params.append('radius_km', radiusKm.toString())
+        console.log(`📍 Fetching landslide data near (${lat}, ${lng}) within ${radiusKm}km radius`)
+      } else {
+        console.log('📊 Fetching all landslide data')
+      }
+      
+      if (params.toString()) {
+        url += '?' + params.toString()
+      }
+      
+      const response = await fetch(url)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      console.log(`✅ Fetched ${data.features?.length || 0} landslide features`)
+      
+      if (data.features && data.features.length > 0) {
+        // Clear existing landslide zones
+        landslideZones.forEach(zone => zone.setMap(null))
+        
+        const newZones: google.maps.Polygon[] = []
+        
+        data.features.forEach((feature: any) => {
+          let coordinates: google.maps.LatLngLiteral[] = []
+          
+          // Handle different geometry types
+          if (feature.geometry.type === 'Polygon' && feature.geometry.coordinates && feature.geometry.coordinates[0]) {
+            coordinates = feature.geometry.coordinates[0].map((coord: number[]) => ({
+              lat: Number(coord[1]),
+              lng: Number(coord[0])
+            }))
+          } else if (feature.geometry.type === 'MultiPolygon' && feature.geometry.coordinates) {
+            // For MultiPolygon, take the first polygon
+            if (feature.geometry.coordinates[0] && feature.geometry.coordinates[0][0]) {
+              coordinates = feature.geometry.coordinates[0][0].map((coord: number[]) => ({
+                lat: Number(coord[1]),
+                lng: Number(coord[0])
+              }))
+            }
+          }
+          
+          // Skip if no valid coordinates
+          if (coordinates.length < 3) {
+            console.warn('⚠️ Skipping landslide feature - insufficient coordinates:', coordinates.length)
+            return
+          }
+          
+          // Validate coordinates are finite numbers
+          const validCoordinates = coordinates.filter(coord => 
+            isFinite(coord.lat) && isFinite(coord.lng)
+          )
+          
+          if (validCoordinates.length < 3) {
+            console.warn('⚠️ Skipping landslide feature - invalid coordinates')
+            return
+          }
+          
+          coordinates = validCoordinates
+          
+          const riskLevel = feature.properties.risk_level
+          const color = riskLevel >= 2.5 ? '#8B4513' : riskLevel >= 1.5 ? '#D2691E' : '#DEB887'
+          const opacity = riskLevel >= 2.5 ? 0.7 : riskLevel >= 1.5 ? 0.5 : 0.3
+          
+          const polygon = new google.maps.Polygon({
+            paths: coordinates,
+            strokeColor: color,
+            strokeOpacity: 0.8,
+            strokeWeight: 2,
+            fillColor: color,
+            fillOpacity: opacity,
+            map: map || undefined
+          })
+          
+          // Add click listener for info window
+          polygon.addListener('click', (event: google.maps.MapMouseEvent) => {
+            if (currentInfoWindowRef.current) {
+              currentInfoWindowRef.current.close()
+            }
+            
+            const infoWindow = new google.maps.InfoWindow({
+              content: `
+                <div style="padding: 10px; max-width: 200px;">
+                  <h3 style="margin: 0 0 8px 0; color: #1f2937;">Landslide Risk Zone</h3>
+                  <p style="margin: 4px 0; font-size: 14px;">
+                    <strong>Risk Level:</strong> ${feature.properties.risk_level.toFixed(1)}/3.0
+                  </p>
+                  <p style="margin: 4px 0; font-size: 14px;">
+                    <strong>Category:</strong> ${feature.properties.risk_category}
+                  </p>
+                  <p style="margin: 4px 0; font-size: 12px; color: #6b7280;">
+                    ID: ${feature.properties.id}
+                  </p>
+                </div>
+              `,
+              position: event.latLng
+            })
+            
+            infoWindow.open(map)
+            currentInfoWindowRef.current = infoWindow
+          })
+          
+          newZones.push(polygon)
+        })
+        
+        setLandslideZones(newZones)
+        console.log(`✅ Added ${newZones.length} landslide zones to map`)
+      }
+    } catch (error) {
+      console.error('❌ Error fetching landslide data:', error)
+    } finally {
+      setIsLoadingLandslideData(false)
+    }
+  }
+
+  const fetchSeismicData = async () => {
+    try {
+      setIsLoadingSeismicData(true)
+      console.log('🌋 Fetching seismic data from backend...')
+      const response = await fetch(`${BACKEND_BASE_URL}/api/seismic-data?hours=24`)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      console.log(`✅ Fetched ${data.features?.length || 0} seismic events`)
+      
+      if (data.features && data.features.length > 0) {
+        // Clear existing seismic markers
+        seismicMarkers.forEach(marker => marker.setMap(null))
+        
+        const newMarkers: google.maps.Marker[] = []
+        
+        data.features.forEach((feature: any) => {
+          if (feature.geometry.type === 'Point' && feature.geometry.coordinates) {
+            const [lng, lat] = feature.geometry.coordinates
+            const magnitude = feature.properties.magnitude
+            const depth = feature.properties.depth
+            const locationName = feature.properties.location_name
+            const eventTime = feature.properties.event_time
+            
+            // Determine marker color based on magnitude
+            let markerColor = '#00FF00' // Green for low magnitude
+            let markerSize = 8
+            let markerOpacity = 0.6
+            
+            if (magnitude >= 6.0) {
+              markerColor = '#FF0000' // Red for major earthquakes
+              markerSize = 16
+              markerOpacity = 0.9
+            } else if (magnitude >= 4.5) {
+              markerColor = '#FFA500' // Orange for moderate earthquakes
+              markerSize = 12
+              markerOpacity = 0.8
+            } else if (magnitude >= 3.0) {
+              markerColor = '#FFFF00' // Yellow for minor earthquakes
+              markerSize = 10
+              markerOpacity = 0.7
+            }
+            
+            // Create custom marker icon
+            const markerIcon = {
+              path: google.maps.SymbolPath.CIRCLE,
+              fillColor: markerColor,
+              fillOpacity: markerOpacity,
+              strokeColor: '#000000',
+              strokeWeight: 1,
+              scale: markerSize
+            }
+            
+            const marker = new google.maps.Marker({
+              position: { lat: Number(lat), lng: Number(lng) },
+              map: map || undefined,
+              icon: markerIcon,
+              title: `Magnitude ${magnitude} earthquake`,
+              zIndex: 150
+            })
+            
+            // Add click listener for info window
+            marker.addListener('click', () => {
+              if (currentInfoWindowRef.current) {
+                currentInfoWindowRef.current.close()
+              }
+              
+              const infoWindow = new google.maps.InfoWindow({
+                content: `
+                  <div style="padding: 10px; max-width: 250px;">
+                    <h3 style="margin: 0 0 8px 0; color: #1f2937;">🌋 Earthquake Event</h3>
+                    <p style="margin: 4px 0; font-size: 14px;">
+                      <strong>Magnitude:</strong> ${magnitude.toFixed(1)}
+                    </p>
+                    <p style="margin: 4px 0; font-size: 14px;">
+                      <strong>Depth:</strong> ${depth ? `${depth.toFixed(1)} km` : 'Unknown'}
+                    </p>
+                    <p style="margin: 4px 0; font-size: 14px;">
+                      <strong>Location:</strong> ${locationName || 'Unknown'}
+                    </p>
+                    <p style="margin: 4px 0; font-size: 12px; color: #6b7280;">
+                      <strong>Time:</strong> ${eventTime ? new Date(eventTime).toLocaleString() : 'Unknown'}
+                    </p>
+                    <p style="margin: 4px 0; font-size: 12px; color: #6b7280;">
+                      ID: ${feature.properties.id}
+                    </p>
+                  </div>
+                `,
+                position: { lat: Number(lat), lng: Number(lng) }
+              })
+              
+              infoWindow.open(map)
+              currentInfoWindowRef.current = infoWindow
+            })
+            
+            newMarkers.push(marker)
+          }
+        })
+        
+        setSeismicMarkers(newMarkers)
+        console.log(`✅ Added ${newMarkers.length} seismic markers to map`)
+      }
+    } catch (error) {
+      console.error('❌ Error fetching seismic data:', error)
+    } finally {
+      setIsLoadingSeismicData(false)
+    }
+  }
+
+  const clearMapData = () => {
+    console.log('🧹 Clearing all map data...')
+    
+    // Clear flood polygons
+    floodPolygons.forEach(polygon => polygon.setMap(null))
+    setFloodPolygons([])
+    
+    // Clear landslide zones
+    landslideZones.forEach(zone => zone.setMap(null))
+    setLandslideZones([])
+    
+    // Clear fire zones
+    fireZones.forEach(zone => zone.setMap(null))
+    setFireZones([])
+    
+    // Clear markers
+    landslideMarkers.forEach(marker => marker.setMap(null))
+    setLandslideMarkers([])
+    fireMarkers.forEach(marker => marker.setMap(null))
+    setFireMarkers([])
+    seismicMarkers.forEach(marker => marker.setMap(null))
+    setSeismicMarkers([])
+    
+    // Close any open info windows
+    if (currentInfoWindowRef.current) {
+      currentInfoWindowRef.current.close()
+      currentInfoWindowRef.current = null
+    }
+    
+    console.log('✅ Map cleared successfully')
+  }
+
   const fetchWeatherData = async (lat: number, lng: number) => {
     setIsLoadingWeather(true)
     setWeatherError(null)
@@ -1022,18 +1457,14 @@ export function InteractiveMap() {
       floodCenterMarkers.forEach(m => m.setMap(null));
       landslideMarkers.forEach(m => m.setMap(null));
       fireMarkers.forEach(m => m.setMap(null));
-      energyMarkers.forEach(m => m.setMap(null));
       landslideZones.forEach(z => z.setMap(null));
       fireZones.forEach(z => z.setMap(null));
-      energyZones.forEach(z => z.setMap(null));
       setFloodPolygons([]);
       setFloodCenterMarkers([]);
       setLandslideMarkers([]);
       setFireMarkers([]);
-      setEnergyMarkers([]);
       setLandslideZones([]);
       setFireZones([]);
-      setEnergyZones([]);
       if (centerMarkerRef.current) {
         centerMarkerRef.current.setMap(null);
         centerMarkerRef.current = null;
@@ -1208,15 +1639,13 @@ export function InteractiveMap() {
         const typeToEmoji: Record<string, string> = {
           landslide: '⛰️',
           fire: '🔥',
-          energy: '⚡',
         };
         const markers: google.maps.Marker[] = [];
         const newPolygons: google.maps.Polygon[] = [];
         const positions: google.maps.LatLngLiteral[] = [];
         const filtered = riskZones.filter(z => 
           (selectedLayer === 'landslide' && z.type === 'landslide') ||
-          (selectedLayer === 'fire' && z.type === 'fire') ||
-          (selectedLayer === 'energy' && z.type === 'energy')
+          (selectedLayer === 'fire' && z.type === 'fire')
         );
         filtered.forEach(z => {
           const pos = { lat: z.lat, lng: z.lng };
@@ -1230,7 +1659,7 @@ export function InteractiveMap() {
           positions.push(pos);
           // Polygon zone around center (diamond shape)
           const sizeByLevel: Record<string, number> = { high: 0.008, medium: 0.006, low: 0.004, active: 0.006 };
-          const colorByType: Record<string, string> = { landslide: '#f59e0b', fire: '#ef4444', energy: '#22c55e' };
+          const colorByType: Record<string, string> = { landslide: '#f59e0b', fire: '#ef4444' };
           const poly = new google.maps.Polygon({
             paths: [
               { lat: pos.lat + sizeByLevel[z.level] || 0.005, lng: pos.lng },
@@ -1259,7 +1688,7 @@ export function InteractiveMap() {
           infoContainer.appendChild(closeBtn);
           infoContainer.appendChild(body);
           const info = new google.maps.InfoWindow({ content: infoContainer });
-          closeBtn.addEventListener('click', (ev) => {ev.preventDefault();ev.stopPropagation(); info.close(); if(currentInfoWindowRef.current===info) currentInfoWindowRef.current=null;});
+          closeBtn.addEventListener('click', (ev)=>{ev.preventDefault();ev.stopPropagation(); info.close(); if(currentInfoWindowRef.current===info) currentInfoWindowRef.current=null;});
           poly.addListener('click', (e: google.maps.MapMouseEvent) => {
             if (currentInfoWindowRef.current) currentInfoWindowRef.current.close();
             if (e.latLng) info.setPosition(e.latLng);
@@ -1271,13 +1700,11 @@ export function InteractiveMap() {
 
         if (selectedLayer === 'landslide') setLandslideMarkers(markers);
         if (selectedLayer === 'fire') setFireMarkers(markers);
-        if (selectedLayer === 'energy') setEnergyMarkers(markers);
         if (selectedLayer === 'landslide') setLandslideZones(newPolygons as unknown as any);
         if (selectedLayer === 'fire') setFireZones(newPolygons as unknown as any);
-        if (selectedLayer === 'energy') setEnergyZones(newPolygons as unknown as any);
 
-        // Zoom preference: high level for landslide/fire, active for energy
-        const priority = selectedLayer === 'energy' ? 'active' : 'high';
+        // Zoom preference: high level for landslide/fire
+        const priority = 'high';
         const priorityPositions = filtered
           .filter(z => z.level === priority)
           .map(z => ({ lat: z.lat, lng: z.lng }));
@@ -1295,6 +1722,18 @@ export function InteractiveMap() {
             zIndex: 250,
           });
         }
+
+      } else if (selectedLayer === 'seismic') {
+        // Render seismic markers (data will be loaded via fetchSeismicData)
+        // The markers are already created in fetchSeismicData function
+        // Just add a centered icon for seismic layer
+        centerMarkerRef.current = new google.maps.Marker({
+          position: selectedLocation,
+          map,
+          icon: getTransparentIcon(),
+          label: { text: '🌋', color: '#dc2626', fontSize: '20px' as any },
+          zIndex: 250,
+        });
 
       } else if (selectedLayer === 'all') {
         // Show everything
@@ -1324,10 +1763,8 @@ export function InteractiveMap() {
         const positions: google.maps.LatLngLiteral[] = [];
         const landslideArr: google.maps.Marker[] = [];
         const fireArr: google.maps.Marker[] = [];
-        const energyArr: google.maps.Marker[] = [];
         const landslidePolyArr: google.maps.Polygon[] = [];
         const firePolyArr: google.maps.Polygon[] = [];
-        const energyPolyArr: google.maps.Polygon[] = [];
         riskZones.forEach(z => {
           const pos = { lat: z.lat, lng: z.lng };
           if (z.type === 'landslide') {
@@ -1376,40 +1813,14 @@ export function InteractiveMap() {
               iw.open(map);
               currentInfoWindowRef.current = iw;
             });
-            firePolyArr.push(poly);
-            positions.push(pos);
-          } else if (z.type === 'energy') {
-            energyArr.push(new google.maps.Marker({ position: pos, map, icon: getTransparentIcon(), label: { text: '⚡', color: '#111827', fontSize: '18px' as any } }));
-            const s = 0.006;
-            const coords = [
-              { lat: pos.lat + s, lng: pos.lng },
-              { lat: pos.lat, lng: pos.lng + s },
-              { lat: pos.lat - s, lng: pos.lng },
-              { lat: pos.lat, lng: pos.lng - s },
-            ];
-            const poly = new google.maps.Polygon({ paths: coords, strokeColor: '#22c55e', strokeOpacity: 0.9, strokeWeight: 3, fillColor: '#22c55e', fillOpacity: 0.35, map, zIndex: 90 });
-            const cont = document.createElement('div'); cont.style.position='relative'; cont.style.font='13px system-ui';
-            const x = document.createElement('button'); x.textContent='×'; x.setAttribute('aria-label','Close'); Object.assign(x.style,{position:'absolute',top:'4px',right:'6px',background:'#ef4444',color:'#fff',border:'none',borderRadius:'9999px',width:'18px',height:'18px',cursor:'pointer',lineHeight:'16px',textAlign:'center'});
-            const b = document.createElement('div'); b.innerHTML=`<strong>Energy Site</strong><br/>Status: ACTIVE<br/>Location: ${z.name || 'Site'}`;
-            cont.appendChild(x); cont.appendChild(b);
-            const iw = new google.maps.InfoWindow({ content: cont });
-            x.addEventListener('click',(ev)=>{ev.preventDefault();ev.stopPropagation(); iw.close(); if(currentInfoWindowRef.current===iw) currentInfoWindowRef.current=null;});
-            poly.addListener('click', (e: google.maps.MapMouseEvent) => {
-              if (currentInfoWindowRef.current) currentInfoWindowRef.current.close();
-              if (e.latLng) iw.setPosition(e.latLng);
-              iw.open(map);
-              currentInfoWindowRef.current = iw;
-            });
-            energyPolyArr.push(poly);
+                        firePolyArr.push(poly);
             positions.push(pos);
           }
         });
         setLandslideMarkers(landslideArr);
         setFireMarkers(fireArr);
-        setEnergyMarkers(energyArr);
         setLandslideZones(landslidePolyArr as unknown as any);
         setFireZones(firePolyArr as unknown as any);
-        setEnergyZones(energyPolyArr as unknown as any);
 
         // Fit to all features once
         const polygonCenters = sampleFloodPredictions.map(p => getPolygonCentroid(p.coordinates));
@@ -1417,6 +1828,29 @@ export function InteractiveMap() {
       }
     }
   }, [map, selectedLayer]);
+
+  // Load data when map is ready and layer changes
+  useEffect(() => {
+    if (!map) return;
+    
+    console.log(`🔄 Loading data for layer: ${selectedLayer}`)
+    
+    if (selectedLayer === 'flood' || selectedLayer === 'all') {
+      fetchFloodData()
+    }
+    
+    if (selectedLayer === 'landslide' || selectedLayer === 'all') {
+      fetchLandslideData(currentMapCenter.lat, currentMapCenter.lng, queryRadius)
+    }
+    
+    if (selectedLayer === 'seismic' || selectedLayer === 'all') {
+      fetchSeismicData()
+    }
+    
+    if (selectedLayer === 'weather' || selectedLayer === 'all') {
+      fetchWeatherData(currentMapCenter.lat, currentMapCenter.lng)
+    }
+  }, [map, selectedLayer])
 
   // Animation loop for HEC-RAS style pulsing effect - Always active
   useEffect(() => {
@@ -1436,8 +1870,7 @@ export function InteractiveMap() {
     const ringOpacity = 0.35 + (Math.sin(animationFrame * 0.5) * 0.1);
     landslideZones.forEach((p: any) => p.setOptions({ fillOpacity: ringOpacity }));
     fireZones.forEach((p: any) => p.setOptions({ fillOpacity: ringOpacity }));
-    energyZones.forEach((p: any) => p.setOptions({ fillOpacity: ringOpacity }));
-  }, [animationFrame, floodPolygons, landslideZones, fireZones, energyZones]);
+  }, [animationFrame, floodPolygons, landslideZones, fireZones]);
 
   const getLevelColor = (level: string) => {
     switch (level) {
@@ -1523,32 +1956,115 @@ export function InteractiveMap() {
               Back to Dashboard
             </Button>
           </div>
-          {/* AlphaEarth Toggle */}
-          <div className="absolute top-4 right-4 z-10 flex gap-2">
+          
+          {/* My Location Button */}
+          <div className="absolute top-4 left-48 z-10">
             <Button
-              onClick={() => setShowAlphaEarth((v: boolean) => !v)}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => {
+                if (navigator.geolocation) {
+                  navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                      const { latitude, longitude } = position.coords
+                      setCurrentMapCenter({ lat: latitude, lng: longitude })
+                      if (map) {
+                        map.setCenter({ lat: latitude, lng: longitude })
+                        map.setZoom(12)
+                      }
+                    },
+                    (error) => {
+                      console.error('Error getting current location:', error)
+                      alert('Unable to get current location. Please check your browser permissions.')
+                    }
+                  )
+                } else {
+                  alert('Geolocation is not supported by this browser.')
+                }
+              }}
+              className="bg-green-600 hover:bg-green-700 text-white border border-green-500 shadow-lg backdrop-blur-sm"
               size="sm"
             >
-              {showAlphaEarth ? 'Hide AlphaEarth' : 'AlphaEarth AI'}
+              <MapPin className="w-4 h-4 mr-2" />
+              My Location
             </Button>
           </div>
           
           {/* Fullscreen Layer Toolbar */}
-          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10 w-full max-w-4xl px-4">
-            <div className="flex gap-3 overflow-x-auto p-2 bg-white/80 rounded-lg shadow-md backdrop-blur-sm">
-              {mapLayers.map((layer) => (
-                <Button
-                  key={layer.id}
-                  variant={selectedLayer === layer.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedLayer(layer.id)}
-                  className={`${selectedLayer === layer.id ? "bg-blue-600 text-white border-blue-600" : "border-blue-200 text-blue-700 hover:bg-blue-50"} min-w-fit px-4 py-2`}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 w-full max-w-4xl px-4">
+            <div className="flex flex-col gap-3">
+              {/* Layer Buttons */}
+              <div className="flex gap-3 overflow-x-auto p-2 bg-white/80 rounded-lg shadow-md backdrop-blur-sm">
+                {mapLayers.map((layer) => (
+                  <Button
+                    key={layer.id}
+                    variant={selectedLayer === layer.id ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedLayer(layer.id)}
+                    className={`${selectedLayer === layer.id ? "bg-blue-600 text-white border-blue-600" : "border-blue-200 text-blue-700 hover:bg-blue-50"} min-w-fit px-4 py-2`}
+                  >
+                    <layer.icon className="w-4 h-4 mr-2" />
+                    <span className="whitespace-nowrap font-medium">{layer.label || 'All'}</span>
+                  </Button>
+                ))}
+              </div>
+              
+              {/* Radius Control */}
+              <div className="flex items-center justify-center gap-3 p-2 bg-white/80 rounded-lg shadow-md backdrop-blur-sm">
+                <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                  Query Radius:
+                </label>
+                <select
+                  value={queryRadius}
+                  onChange={(e) => setQueryRadius(Number(e.target.value))}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <layer.icon className="w-4 h-4 mr-2" />
-                  <span className="whitespace-nowrap font-medium">{layer.label || 'All'}</span>
+                  <option value={10}>10 km</option>
+                  <option value={25}>25 km</option>
+                  <option value={50}>50 km</option>
+                  <option value={100}>100 km</option>
+                  <option value={200}>200 km</option>
+                </select>
+                <span className="text-xs text-gray-500">
+                  (for nearby queries)
+                </span>
+              </div>
+              
+              {/* Load Data and Clear Map Buttons */}
+              <div className="flex justify-center gap-3">
+                <Button
+                  onClick={() => {
+                    if (selectedLayer === 'flood' || selectedLayer === 'all') {
+                      fetchFloodData()
+                    }
+                    if (selectedLayer === 'landslide' || selectedLayer === 'all') {
+                      fetchLandslideData(currentMapCenter.lat, currentMapCenter.lng, queryRadius)
+                    }
+                    if (selectedLayer === 'seismic' || selectedLayer === 'all') {
+                      fetchSeismicData()
+                    }
+                    if (selectedLayer === 'weather' || selectedLayer === 'all') {
+                      fetchWeatherData(currentMapCenter.lat, currentMapCenter.lng)
+                    }
+                  }}
+                  disabled={isLoadingFloodData || isLoadingLandslideData || isLoadingSeismicData || isLoadingWeather}
+                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 shadow-lg disabled:opacity-50"
+                  size="sm"
+                >
+                  <Cloud className="w-4 h-4 mr-2" />
+                  {isLoadingFloodData || isLoadingLandslideData || isLoadingSeismicData || isLoadingWeather 
+                    ? 'Loading...' 
+                    : `Load ${selectedLayer === 'all' ? 'All Data' : selectedLayer.charAt(0).toUpperCase() + selectedLayer.slice(1) + ' Data'}`
+                  }
                 </Button>
-              ))}
+                
+                <Button
+                  onClick={clearMapData}
+                  className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 shadow-lg"
+                  size="sm"
+                >
+                  <Info className="w-4 h-4 mr-2" />
+                  Clear Map
+                </Button>
+              </div>
             </div>
           </div>
           
@@ -1607,9 +2123,12 @@ export function InteractiveMap() {
               <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-lg">
                 <div className="flex items-center space-x-2">
                   <MapPin className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm font-medium">Iloilo City Region</span>
+                  <span className="text-sm font-medium">Map Center</span>
                 </div>
-                <p className="text-xs text-gray-600 mt-1">Real-time monitoring active</p>
+                <p className="text-xs text-gray-600 mt-1">
+                  {currentMapCenter.lat.toFixed(4)}, {currentMapCenter.lng.toFixed(4)}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Real-time monitoring active</p>
               </div>
             )}
           </div>
@@ -1711,6 +2230,44 @@ export function InteractiveMap() {
                 <div className="absolute right-0 top-3 bottom-3 w-3 bg-gradient-to-l from-white via-white/80 to-transparent pointer-events-none z-10 transition-opacity duration-300"></div>
               )}
             </div>
+            
+            {/* Load Data and Clear Map Buttons */}
+            <div className="flex justify-center gap-3 mt-3">
+              <Button
+                onClick={() => {
+                  if (selectedLayer === 'flood' || selectedLayer === 'all') {
+                    fetchFloodData()
+                  }
+                  if (selectedLayer === 'landslide' || selectedLayer === 'all') {
+                    fetchLandslideData(currentMapCenter.lat, currentMapCenter.lng, queryRadius)
+                  }
+                  if (selectedLayer === 'seismic' || selectedLayer === 'all') {
+                    fetchSeismicData()
+                  }
+                  if (selectedLayer === 'weather' || selectedLayer === 'all') {
+                    fetchWeatherData(currentMapCenter.lat, currentMapCenter.lng)
+                  }
+                }}
+                disabled={isLoadingFloodData || isLoadingLandslideData || isLoadingSeismicData || isLoadingWeather}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 disabled:opacity-50"
+                size="sm"
+              >
+                <Cloud className="w-4 h-4 mr-2" />
+                {isLoadingFloodData || isLoadingLandslideData || isLoadingSeismicData || isLoadingWeather 
+                  ? 'Loading...' 
+                  : `Load ${selectedLayer === 'all' ? 'All Data' : selectedLayer.charAt(0).toUpperCase() + selectedLayer.slice(1) + ' Data'}`
+                }
+              </Button>
+              
+              <Button
+                onClick={clearMapData}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2"
+                size="sm"
+              >
+                <Info className="w-4 h-4 mr-2" />
+                Clear Map
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="w-full p-2">
@@ -1771,24 +2328,63 @@ export function InteractiveMap() {
               <div className="absolute top-0.5 right-0.5 bg-white/90 backdrop-blur-sm p-3 rounded-lg">
                 <div className="flex items-center space-x-2">
                   <MapPin className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm font-medium">Iloilo City Region</span>
+                  <span className="text-sm font-medium">Map Center</span>
                 </div>
-                <p className="text-xs text-gray-600 mt-1">Real-time monitoring active</p>
+                <p className="text-xs text-gray-600 mt-1">
+                  {currentMapCenter.lat.toFixed(4)}, {currentMapCenter.lng.toFixed(4)}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Real-time monitoring active</p>
               </div>
             )}
           </div>
 
           {/* Map Controls */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-2">
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline" className="border-blue-200 text-blue-700">
-                125 Monitoring Stations
-              </Badge>
-              <Badge variant="outline" className="border-green-200 text-green-700">
-                15 Clean Energy Sites
-              </Badge>
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                Query Radius:
+              </label>
+              <select
+                value={queryRadius}
+                onChange={(e) => setQueryRadius(Number(e.target.value))}
+                className="px-2 py-1 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value={10}>10 km</option>
+                <option value={25}>25 km</option>
+                <option value={50}>50 km</option>
+                <option value={100}>100 km</option>
+                <option value={200}>200 km</option>
+              </select>
             </div>
             <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-green-200 text-green-700 bg-transparent"
+                onClick={() => {
+                  if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                      (position) => {
+                        const { latitude, longitude } = position.coords
+                        setCurrentMapCenter({ lat: latitude, lng: longitude })
+                        if (map) {
+                          map.setCenter({ lat: latitude, lng: longitude })
+                          map.setZoom(12)
+                        }
+                      },
+                      (error) => {
+                        console.error('Error getting current location:', error)
+                        alert('Unable to get current location. Please check your browser permissions.')
+                      }
+                    )
+                  } else {
+                    alert('Geolocation is not supported by this browser.')
+                  }
+                }}
+              >
+                <MapPin className="w-4 h-4 mr-1" />
+                My Location
+              </Button>
               <Button 
                 variant="outline" 
                 size="sm" 

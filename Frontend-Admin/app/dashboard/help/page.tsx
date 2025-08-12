@@ -37,7 +37,6 @@ export default function HelpSupportPage() {
     { id: "getting-started", label: "Getting Started" },
     { id: "weather-monitoring", label: "Weather Monitoring" },
     { id: "emergency-protocols", label: "Emergency Protocols" },
-    { id: "energy-management", label: "Energy Management" },
     { id: "troubleshooting", label: "Troubleshooting" },
   ]
 
@@ -118,14 +117,7 @@ export default function HelpSupportPage() {
         "Navigate to Emergency Protocols > Alert Messaging. Select the alert type, affected area, and severity level. Review the message template and click 'Send Emergency Alert' to broadcast to all relevant agencies.",
       baseHelpful: 52,
     },
-    {
-      id: 4,
-      category: "energy-management",
-      question: "How do I switch to backup power during emergencies?",
-      answer:
-        "Go to Clean Energy Management > Microgrids tab. Select the affected grid and click 'Switch to Backup'. The system will automatically activate renewable energy sources and battery storage.",
-      baseHelpful: 29,
-    },
+
     {
       id: 5,
       category: "troubleshooting",
@@ -169,14 +161,7 @@ export default function HelpSupportPage() {
       type: "document",
       difficulty: "Advanced",
     },
-    {
-      id: 4,
-      title: "Clean Energy System Management",
-      description: "Managing renewable energy systems and microgrids",
-      duration: "12 minutes",
-      type: "video",
-      difficulty: "Intermediate",
-    },
+
   ]
 
   const supportTickets = [
@@ -198,15 +183,7 @@ export default function HelpSupportPage() {
       lastUpdate: "2024-01-31 16:22:33",
       assignedTo: "Emergency Systems Team",
     },
-    {
-      id: "TKT-003",
-      subject: "Solar panel monitoring offline",
-      status: "resolved",
-      priority: "medium",
-      created: "2024-01-30 09:45:15",
-      lastUpdate: "2024-01-31 11:30:45",
-      assignedTo: "Energy Management Team",
-    },
+
   ]
 
   const contactInfo = [

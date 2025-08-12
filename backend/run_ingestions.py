@@ -20,17 +20,32 @@ def main():
         print("Usage: python run_ingestions.py <data_type> <file_path> [options]")
         print("\nData types:")
         print("  flood     - Ingest flood data (uses 'Var' column)")
-        print("  landslide - Ingest landslide data (uses 'HAZ' column)")
+        print("  landslide - Ingest landslide data (uses 'LH' column)")
         print("  weather   - Ingest weather data from API")
         print("  seismic   - Ingest seismic data from CSV")
         print("\nExamples:")
         print("  python run_ingestions.py flood data/flood_zones.shp")
-        print("  python run_ingestions.py landslide data/landslide_zones.shp")
+        print("  python run_ingestions.py flood data/flood_zones.shp --max-coordinates 500 --simplify-tolerance 0.001")
+        print("  python run_ingestions.py landslide data/landslide_zones.shp --chunk-size 500 --split-geometries")
         print("  python run_ingestions.py weather --mode cities")
         print("  python run_ingestions.py weather --mode single --lat 14.5995 --lng 120.9842")
         print("  python run_ingestions.py seismic data/earthquakes.csv")
         print("  python run_ingestions.py seismic data/earthquakes.csv --date-format '%Y-%m-%d %H:%M:%S'")
         print("  python run_ingestions.py seismic data/earthquakes.csv --validate-only")
+        print("\nFlood options:")
+        print("  --risk-column <name>        - Specify risk column name (default: 'Var')")
+        print("  --chunk-size <number>       - Number of features per chunk (default: 1000)")
+        print("  --batch-size <number>       - Number of records per batch (default: 100)")
+        print("  --optimized                 - Use optimized settings for large datasets (2M+ points)")
+        print("  --split-geometries          - Split large multipolygons into smaller pieces")
+        print("  --max-coords-per-polygon <number> - Max coordinates per polygon when splitting (default: 10000)")
+        print("\nLandslide options:")
+        print("  --risk-column <name>        - Specify risk column name (default: 'LH')")
+        print("  --chunk-size <number>       - Number of features per chunk (default: 1000)")
+        print("  --batch-size <number>       - Number of records per batch (default: 100)")
+        print("  --optimized                 - Use optimized settings for large datasets (2M+ points)")
+        print("  --split-geometries          - Split large multipolygons into smaller pieces")
+        print("  --max-coords-per-polygon <number> - Max coordinates per polygon when splitting (default: 10000)")
         print("\nWeather modes:")
         print("  cities    - Ingest weather for major Philippine cities")
         print("  single    - Ingest weather for a single location")
@@ -52,21 +67,55 @@ def main():
             
             # Parse additional options
             risk_column = None
+            chunk_size = 1000
+            batch_size = 100
+            use_optimized = False
+            split_geometries = False
+            max_coords_per_polygon = 10000
+            
             for i, arg in enumerate(sys.argv[3:], 3):
                 if arg == "--risk-column" and i + 1 < len(sys.argv):
                     risk_column = sys.argv[i + 1]
+                elif arg == "--chunk-size" and i + 1 < len(sys.argv):
+                    chunk_size = int(sys.argv[i + 1])
+                elif arg == "--batch-size" and i + 1 < len(sys.argv):
+                    batch_size = int(sys.argv[i + 1])
+                elif arg == "--optimized":
+                    use_optimized = True
+                elif arg == "--split-geometries":
+                    split_geometries = True
+                elif arg == "--max-coords-per-polygon" and i + 1 < len(sys.argv):
+                    max_coords_per_polygon = int(sys.argv[i + 1])
             
             # Set default risk column for flood data
             if not risk_column:
                 risk_column = "Var"
             
             print(f"🌊 Ingesting flood data with risk column: {risk_column}")
-            ingestor = FloodIngestor()
-            ingestor.ingest_shp(
-                file_path=file_path,
-                risk_column=risk_column,
-                default_risk=2.0
-            )
+            print(f"   Chunk size: {chunk_size}")
+            print(f"   Batch size: {batch_size}")
+            if split_geometries:
+                print(f"   Geometry splitting enabled (max {max_coords_per_polygon} coords per polygon)")
+            if use_optimized:
+                print(f"   Using optimized mode for large datasets")
+            
+            ingestor = FloodIngestor(chunk_size=chunk_size, batch_size=batch_size)
+            
+            if use_optimized:
+                ingestor.ingest_shp_optimized(
+                    file_path=file_path,
+                    risk_column=risk_column,
+                    default_risk=2.0,
+                    max_coordinates_per_polygon=max_coords_per_polygon
+                )
+            else:
+                ingestor.ingest_shp(
+                    file_path=file_path,
+                    risk_column=risk_column,
+                    default_risk=2.0,
+                    split_large_geometries=split_geometries,
+                    max_coordinates_per_polygon=max_coords_per_polygon
+                )
             
         elif data_type == "landslide":
             # Handle landslide data ingestion
@@ -81,21 +130,55 @@ def main():
             
             # Parse additional options
             risk_column = None
+            chunk_size = 1000
+            batch_size = 100
+            use_optimized = False
+            split_geometries = False
+            max_coords_per_polygon = 10000
+            
             for i, arg in enumerate(sys.argv[3:], 3):
                 if arg == "--risk-column" and i + 1 < len(sys.argv):
                     risk_column = sys.argv[i + 1]
+                elif arg == "--chunk-size" and i + 1 < len(sys.argv):
+                    chunk_size = int(sys.argv[i + 1])
+                elif arg == "--batch-size" and i + 1 < len(sys.argv):
+                    batch_size = int(sys.argv[i + 1])
+                elif arg == "--optimized":
+                    use_optimized = True
+                elif arg == "--split-geometries":
+                    split_geometries = True
+                elif arg == "--max-coords-per-polygon" and i + 1 < len(sys.argv):
+                    max_coords_per_polygon = int(sys.argv[i + 1])
             
             # Set default risk column for landslide data
             if not risk_column:
                 risk_column = "LH"
             
             print(f"🏔️ Ingesting landslide data with risk column: {risk_column}")
-            ingestor = LandslideIngestor()
-            ingestor.ingest_shp(
-                file_path=file_path,
-                risk_column=risk_column,
-                default_risk=2.0
-            )
+            print(f"   Chunk size: {chunk_size}")
+            print(f"   Batch size: {batch_size}")
+            if split_geometries:
+                print(f"   Geometry splitting enabled (max {max_coords_per_polygon} coords per polygon)")
+            if use_optimized:
+                print(f"   Using optimized mode for large datasets")
+            
+            ingestor = LandslideIngestor(chunk_size=chunk_size, batch_size=batch_size)
+            
+            if use_optimized:
+                ingestor.ingest_shp_optimized(
+                    file_path=file_path,
+                    risk_column=risk_column,
+                    default_risk=2.0,
+                    max_coordinates_per_polygon=max_coords_per_polygon
+                )
+            else:
+                ingestor.ingest_shp(
+                    file_path=file_path,
+                    risk_column=risk_column,
+                    default_risk=2.0,
+                    split_large_geometries=split_geometries,
+                    max_coordinates_per_polygon=max_coords_per_polygon
+                )
             
         elif data_type == "weather":
             # Handle weather data ingestion

@@ -97,15 +97,7 @@ export default function ReportsPage() {
       type: "ai_prediction",
       status: "success"
     },
-    {
-      id: "LOG-004",
-      timestamp: "2024-01-31 11:30:45",
-      user: "Energy Manager",
-      action: "Microgrid Switch",
-      details: "Switched hospital backup power to solar grid",
-      type: "energy_management",
-      status: "success"
-    },
+
     {
       id: "LOG-005",
       timestamp: "2024-01-31 10:22:33",
@@ -139,13 +131,7 @@ export default function ReportsPage() {
       trend: "up",
       period: "Last 30 days"
     },
-    {
-      metric: "Clean Energy Savings",
-      value: "₱1.8M",
-      change: "+22%",
-      trend: "up",
-      period: "Last 30 days"
-    }
+
   ]
 
   const disasterEvents = [
@@ -171,17 +157,7 @@ export default function ReportsPage() {
       evacuated: "320 people",
       status: "resolved"
     },
-    {
-      id: "EVT-003",
-      type: "Power Outage",
-      location: "Northern Luzon Grid",
-      date: "2024-01-22",
-      severity: "Low",
-      affected: "45,000 customers",
-      responseTime: "5 minutes",
-      evacuated: "0 people",
-      status: "resolved"
-    }
+
   ]
 
   const getStatusColor = (status: string) => {
@@ -199,7 +175,6 @@ export default function ReportsPage() {
     switch (type) {
       case "summary": return "bg-blue-100 text-blue-800"
       case "assessment": return "bg-purple-100 text-purple-800"
-      case "energy": return "bg-green-100 text-green-800"
       case "performance": return "bg-orange-100 text-orange-800"
       default: return "bg-gray-100 text-gray-800"
     }
@@ -309,7 +284,6 @@ export default function ReportsPage() {
                       <SelectItem value="all">All Types</SelectItem>
                       <SelectItem value="summary">Summary</SelectItem>
                       <SelectItem value="assessment">Assessment</SelectItem>
-                      <SelectItem value="energy">Energy</SelectItem>
                       <SelectItem value="performance">Performance</SelectItem>
                     </SelectContent>
                   </Select>

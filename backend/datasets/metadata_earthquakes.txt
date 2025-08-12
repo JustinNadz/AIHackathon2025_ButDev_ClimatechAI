@@ -9,3 +9,6 @@ Longitude (float)
 Depth_In_Km (float)
 Magnitude (float)
 Location (string describing)
+
+# Proprecessing steps
+- removed values with null items

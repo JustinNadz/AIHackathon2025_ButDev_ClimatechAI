@@ -5,7 +5,6 @@ import { useEffect, useState } from "react"
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -21,10 +20,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
   LayoutDashboard,
-  Radio,
   TrendingUp,
   AlertTriangle,
-  Zap,
   FileText,
   Settings,
   HelpCircle,
@@ -35,19 +32,19 @@ import {
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 
 const menuItems = [
-  { title: "Dashboard Overview", icon: LayoutDashboard, url: "/dashboard", active: true },
+  { title: "Dashboard Overview", icon: LayoutDashboard, url: "/dashboard" },
   { title: "Emergency Protocols", icon: AlertTriangle, url: "/dashboard/emergency" },
-  { title: "Live Data Feed", icon: Radio, url: "/dashboard/live-data" },
-  { title: "Predictive Analytics", icon: TrendingUp, url: "/dashboard/analytics" },
-  { title: "Energy Management", icon: Zap, url: "/dashboard/energy" },
   { title: "Reports & Logs", icon: FileText, url: "/dashboard/reports" },
   { title: "System and User Management", icon: Settings, url: "/dashboard/admin" },
   { title: "Help & Support", icon: HelpCircle, url: "/dashboard/help" },
 ]
 
 function AppSidebar() {
+  const pathname = usePathname()
+  
   return (
     <Sidebar className="border-r border-blue-200">
       <SidebarHeader className="border-b border-blue-200 p-4">
@@ -67,20 +64,25 @@ function AppSidebar() {
           <SidebarGroupLabel className="text-blue-700 font-semibold">Main Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={item.active}
-                    className="text-blue-700 hover:bg-blue-50 data-[active=true]:bg-blue-100 data-[active=true]:text-blue-900"
-                  >
-                    <Link href={item.url}>
-                      <item.icon className="w-4 h-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {menuItems.map((item) => {
+                const isActive = pathname === item.url || 
+                  (item.url === "/dashboard" && pathname === "/dashboard") ||
+                  (item.url !== "/dashboard" && pathname.startsWith(item.url))
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive}
+                      className="text-blue-700 hover:bg-blue-50 data-[active=true]:bg-blue-100 data-[active=true]:text-blue-900"
+                    >
+                      <Link href={item.url}>
+                        <item.icon className="w-4 h-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
