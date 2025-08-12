@@ -1,0 +1,313 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --radius: 0.5rem;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+
+    /* Custom ClimaTech AI colors */
+    --climatech-blue: 221.2 83.2% 53.3%;
+    --climatech-blue-dark: 221.2 83.2% 23.3%;
+    --climatech-yellow: 45 93% 58%;
+    --climatech-red: 0 84.2% 60.2%;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom animations for emergency alerts */
+@keyframes pulse-red {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse-red {
+  animation: pulse-red 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Custom scrollbar for sidebar */
+.sidebar-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(59, 130, 246, 0.3);
+  border-radius: 2px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.5);
+}
+
+/* Styles for dynamic sidebar and content layout */
+.group[data-state="collapsed"] + .flex-1 {
+  width: 100%;
+  margin-left: 0;
+  max-width: 100%;
+  transition: margin 0.2s ease-in-out, width 0.2s ease-in-out;
+}
+
+.group[data-state="expanded"] + .flex-1 {
+  width: calc(100% - var(--sidebar-width, 16rem));
+  margin-left: var(--sidebar-width, 16rem);
+  max-width: calc(100% - var(--sidebar-width, 16rem));
+  transition: margin 0.2s ease-in-out, width 0.2s ease-in-out;
+}
+
+/* Fix for overflow when sidebar is collapsed */
+.group[data-collapsible="offcanvas"] + .flex-1 {
+  width: 100%;
+  margin-left: 0;
+  max-width: 100%;
+}
+
+/* Ensure card components always fit within the viewport */
+.card {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Fix for any components that might cause horizontal overflow */
+.w-full {
+  max-width: 100%;
+}
+
+/* Specific classes for sidebar state */
+.sidebar-collapsed {
+  margin-left: 0;
+  width: 100%;
+  max-width: 100vw;
+}
+
+.sidebar-expanded {
+  margin-left: var(--sidebar-width, 16rem);
+  width: calc(100% - var(--sidebar-width, 16rem));
+  max-width: calc(100% - var(--sidebar-width, 16rem));
+}
+
+/* Ensure proper position when sidebar is toggled */
+.relative > .sidebar-collapsed,
+.relative > .sidebar-expanded {
+  position: relative;
+  left: 0;
+}
+
+/* Horizontal scrolling utilities for interactive map buttons */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Smooth scroll behavior for swipeable buttons */
+.snap-x {
+  scroll-snap-type: x mandatory;
+}
+
+.snap-start {
+  scroll-snap-align: start;
+}
+
+/* Hover scale effects */
+.hover\:scale-102:hover {
+  transform: scale(1.02);
+}
+
+/* Active scale effects for button press feedback */
+.active\:scale-95:active {
+  transform: scale(0.95);
+}
+
+/* Focus ring for accessibility */
+.focus\:ring-2:focus {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+}
+
+/* Assistant orb styles */
+.ai-orb {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 200, 255, 0.25), rgba(0,0,0,0.1));
+  box-shadow: 0 0 40px rgba(0, 200, 255, 0.25);
+  cursor: pointer;
+  overflow: hidden;
+  transform: scale(var(--orb-scale, 1));
+}
+.ai-orb-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 25px rgba(0, 200, 255, 0.35), 0 0 60px rgba(0, 200, 255, 0.25);
+}
+
+/* GPT-like swish texture */
+.ai-swish {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 210deg at 50% 60%, rgba(255,255,255,0.85) 0deg, rgba(255,255,255,0.55) 35deg, rgba(0,140,255,0.5) 120deg, rgba(0,120,255,0.8) 180deg, rgba(255,255,255,0.55) 300deg, rgba(255,255,255,0.85) 360deg));
+  filter: blur(14px) saturate(1.1);
+  opacity: 0.9;
+  mask-image: radial-gradient(circle at 50% 50%, black 70%, transparent 100%);
+}
+
+/* Jarvis-like inner core and rings */
+.ai-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 32%;
+  height: 32%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(255,255,255,0.9), rgba(0,200,255,0.4) 55%, rgba(0,0,0,0) 56%);
+  filter: blur(1px);
+}
+.ai-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 2px solid rgba(0, 200, 255, 0.35);
+}
+.ai-ring.r1 { width: 70%; height: 70%; animation: ring-spin 8s linear infinite; }
+.ai-ring.r2 { width: 85%; height: 85%; animation: ring-spin 14s linear infinite reverse; }
+@keyframes ring-spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+/* Absorbing particles before listening */
+.ai-absorb { 
+  position: absolute; left: 50%; top: 50%; 
+  width: 8px; height: 8px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(0,200,255,1), rgba(0,200,255,0.35)); 
+  filter: blur(0.8px);
+  pointer-events: none;
+  /* starting offsets configurable per particle */
+  --sx: -220px; --sy: -180px; --delay: 0s; --dur: 3.2s;
+  animation: absorb var(--dur) ease-in-out infinite; 
+  animation-delay: var(--delay);
+}
+@keyframes absorb {
+  0% { transform: translate(var(--sx), var(--sy)) scale(0.9); opacity: 0.95; }
+  70% { opacity: 0.95; }
+  100% { transform: translate(-3px, -3px) scale(0.3); opacity: 0; }
+}
+.ai-wave {
+  position: absolute;
+  width: 160%;
+  height: 40%;
+  left: -30%;
+  top: 45%;
+  background: radial-gradient(ellipse at center, rgba(80, 200, 255, 0.6), rgba(80, 0, 255, 0.35), rgba(0,0,0,0) 70%);
+  filter: blur(4px);
+  opacity: var(--wave-opacity, 0.6);
+  border-radius: 50%;
+  animation: wave-move 6s infinite ease-in-out;
+}
+.ai-wave.w2 {
+  animation-delay: 1.8s;
+}
+.ai-orb.listening .ai-wave {
+  animation-duration: 2.8s;
+  opacity: 0.9;
+}
+@keyframes wave-move {
+  0% { transform: translateX(-10%) scaleY(1); }
+  50% { transform: translateX(10%) scaleY(1.2); }
+  100% { transform: translateX(-10%) scaleY(1); }
+}
+
+/* rotate globe overlay slowly */
+.ai-orb .mix-blend-screen { animation: globe-rotate 24s linear infinite; }
+@keyframes globe-rotate { to { transform: rotate(360deg); } }
