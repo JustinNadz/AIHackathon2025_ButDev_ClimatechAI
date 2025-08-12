@@ -37,6 +37,8 @@ export default function DashboardPage() {
         })
       })
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const data = await resp.json()
+      console.log(data)
       alert('Live weather data sent successfully')
     } catch (err) {
       console.error('sendLiveWeather failed:', err)
