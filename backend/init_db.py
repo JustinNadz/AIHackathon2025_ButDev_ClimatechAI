@@ -4,97 +4,6 @@ Database initialization script for PostgreSQL with PostGIS
 """
 
 from db.setup import setup_database, verify_setup
-from db.base import SessionLocal
-from db.queries import (
-    add_flood_data, add_earthquake_data, add_landslide_data, add_weather_data
-)
-from datetime import datetime, timedelta
-
-
-def create_sample_data():
-    """Create sample data for all data types"""
-    print("\n📊 Creating sample data for all data types...")
-    
-    db = SessionLocal()
-    
-    try:
-        # Sample flood data
-        print("🌊 Creating sample flood data...")
-        flood_multipolygon = "MULTIPOLYGON (((125.56724 8.69465, 125.56751 8.69465, 125.56751 8.69447, 125.56724 8.69447, 125.56724 8.69465)))"
-        add_flood_data(
-            db=db,
-            geometry_wkt=flood_multipolygon,
-            risk_level=2.0
-        )
-        
-        # Sample earthquake data
-        print("🌋 Creating sample earthquake data...")
-        earthquake_point = "POINT(121.7740 12.8797)"
-        add_earthquake_data(
-            db=db,
-            geometry_wkt=earthquake_point,
-            magnitude=4.5,
-            depth=10.5,
-            event_time=datetime.now() - timedelta(hours=2),
-            location_name="Sample Earthquake Location",
-            source="sample_data"
-        )
-        
-        # Sample landslide data
-        print("🏔️ Creating sample landslide data...")
-        landslide_polygon = "POLYGON((121.7740 12.8797, 121.7750 12.8797, 121.7750 12.8787, 121.7740 12.8787, 121.7740 12.8797))"
-        add_landslide_data(
-            db=db,
-            geometry_wkt=landslide_polygon,
-            risk_level=3.0
-        )
-        
-        # Add more sample landslide data with different risk levels
-        landslide_polygon2 = "POLYGON((121.7760 12.8797, 121.7770 12.8797, 121.7770 12.8787, 121.7760 12.8787, 121.7760 12.8797))"
-        add_landslide_data(
-            db=db,
-            geometry_wkt=landslide_polygon2,
-            risk_level=1.0
-        )
-        
-        landslide_polygon3 = "POLYGON((121.7780 12.8797, 121.7790 12.8797, 121.7790 12.8787, 121.7780 12.8787, 121.7780 12.8797))"
-        add_landslide_data(
-            db=db,
-            geometry_wkt=landslide_polygon3,
-            risk_level=2.0
-        )
-        
-        # Sample weather data
-        print("🌤️ Creating sample weather data...")
-        weather_locations = [
-            (12.0, 125.0, "Station A"),
-            (13.0, 126.0, "Station B"),
-            (14.0, 127.0, "Station C"),
-        ]
-        for lat, lng, station_name in weather_locations:
-            weather_point = f"POINT({lng} {lat})"
-            add_weather_data(
-                db=db,
-                geometry_wkt=weather_point,
-                temperature=25.0 + (lat - 12) * 2,  # Temperature varies with latitude
-                humidity=75.0,
-                rainfall=2.5,
-                wind_speed=15.0,
-                wind_direction=180.0,
-                pressure=1013.0,
-                station_name=station_name,
-                recorded_at=datetime.now(),
-                source="sample_data"
-            )
-        
-        print("✅ Sample data created successfully for all data types!")
-        
-    except Exception as e:
-        print(f"❌ Error creating sample data: {e}")
-        raise
-    finally:
-        db.close()
-
 
 def main():
     """Main initialization function"""
@@ -109,9 +18,6 @@ def main():
         
         # Verify setup
         verify_setup()
-        
-        # Create sample data
-        create_sample_data()
         
         print("\n🎉 Database initialization completed successfully!")
         print("\n📋 Available API Endpoints:")

@@ -292,9 +292,6 @@ def main():
             print("❌ Failed to create tables")
             sys.exit(1)
         
-        # Step 3: Create sample data
-        create_sample_data()
-        
         # Step 4: Verify database
         if not verify_database():
             print("❌ Database verification failed")
