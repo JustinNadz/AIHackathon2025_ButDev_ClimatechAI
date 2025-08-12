@@ -1519,13 +1519,27 @@ export function InteractiveMap() {
 				url += '?' + params.toString()
 			}
 
-			const response = await fetch(url)
+            // Add timeout and graceful fallback
+            const landslideController = new AbortController();
+            const landslideTimeout = setTimeout(() => landslideController.abort(), 3000);
+            let data: any | null = null;
+            try {
+                const response = await fetch(url, { signal: landslideController.signal });
+                if (!response.ok) {
+                    console.warn(`Landslide API unavailable (${response.status}). Skipping.`);
+                } else {
+                    data = await response.json();
+                }
+            } catch (e) {
+                console.warn('Landslide API request failed or timed out.');
+            } finally {
+                clearTimeout(landslideTimeout);
+            }
 
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`)
-			}
-
-			const data = await response.json()
+            if (!data || !data.features || data.features.length === 0) {
+                // No backend data available; exit quietly
+                return;
+            }
 			console.log(`✅ Fetched ${data.features?.length || 0} landslide features`)
 
 			if (data.features && data.features.length > 0) {
@@ -1619,8 +1633,8 @@ export function InteractiveMap() {
 				setLandslideZones(newZones)
 				console.log(`✅ Added ${newZones.length} landslide zones to map`)
 			}
-		} catch (error) {
-			console.error('❌ Error fetching landslide data:', error)
+        } catch (error) {
+            console.warn('Landslide data load skipped:', error)
 		} finally {
 			setIsLoadingLandslideData(false)
 		}
@@ -1630,13 +1644,27 @@ export function InteractiveMap() {
 		try {
 			setIsLoadingSeismicData(true)
 			console.log('🌋 Fetching seismic data from backend...')
-			const response = await fetch(`${BACKEND_BASE_URL}/api/seismic-data?hours=24`)
+            // Add timeout and graceful fallback
+            const seismicController = new AbortController();
+            const seismicTimeout = setTimeout(() => seismicController.abort(), 3000);
+            let data: any | null = null;
+            try {
+                const response = await fetch(`${BACKEND_BASE_URL}/api/seismic-data?hours=24`, { signal: seismicController.signal })
+                if (!response.ok) {
+                    console.warn(`Seismic API unavailable (${response.status}). Skipping.`)
+                } else {
+                    data = await response.json()
+                }
+            } catch (e) {
+                console.warn('Seismic API request failed or timed out.')
+            } finally {
+                clearTimeout(seismicTimeout)
+            }
 
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`)
-			}
-
-			const data = await response.json()
+            if (!data || !data.features || data.features.length === 0) {
+                // No backend data available; exit quietly
+                return
+            }
 			console.log(`✅ Fetched ${data.features?.length || 0} seismic events`)
 
 			if (data.features && data.features.length > 0) {
@@ -1731,8 +1759,8 @@ export function InteractiveMap() {
 				setSeismicMarkers(newMarkers)
 				console.log(`✅ Added ${newMarkers.length} seismic markers to map`)
 			}
-		} catch (error) {
-			console.error('❌ Error fetching seismic data:', error)
+        } catch (error) {
+            console.warn('Seismic data load skipped:', error)
 		} finally {
 			setIsLoadingSeismicData(false)
 		}

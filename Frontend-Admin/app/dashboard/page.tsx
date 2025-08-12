@@ -6,7 +6,7 @@ import { InteractiveMap } from "@/components/interactive-map"
 
 import { useState } from "react"
 import VoiceAssistant from "@/components/VoiceAssistant"
-import { EmergencyAlerts } from "@/components/emergency-alerts"
+import EmergencyChat from "@/components/EmergencyChat"
 
 export default function DashboardPage() {
   const [assistantOpen, setAssistantOpen] = useState(false)
@@ -26,7 +26,7 @@ export default function DashboardPage() {
 
           {/* Right Panel */}
           <div className="space-y-6 min-w-0 w-full">
-            <EmergencyAlerts />
+            <EmergencyChat />
           </div>
         </div>
 
