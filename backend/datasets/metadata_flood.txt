@@ -33,3 +33,8 @@ This data is licensed under Open Data Commons Open Database License (ODC-ODbL). 
 
 # Update Frequency
 Annual, or as needed based on field validation and/or new data inputs
+
+# Preprocesing steps
+Required heavy chunking, no data is lost but singular data points no longer represent all multipolygon data
+
+Singular data points now represent multiple polygons
