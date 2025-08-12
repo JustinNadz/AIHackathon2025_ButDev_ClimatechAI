@@ -617,9 +617,7 @@ const render = (status: Status): React.ReactElement => {
 export function InteractiveMap() {
     // Default to Butuan City
     const [selectedLocation, setSelectedLocation] = useState<{ lat: number, lng: number }>({ lat: 8.9492, lng: 125.5436 });
-    const [currentMapCenter, setCurrentMapCenter] = useState<{ lat: number, lng: number }>({ lat: 8.9492, lng: 125.5436 });
 	const [selectedLayer, setSelectedLayer] = useState<string>("all");
-	const [queryRadius, setQueryRadius] = useState<number>(50);
 	const [apiKeyStatus, setApiKeyStatus] = useState<'checking' | 'valid' | 'invalid' | 'billing-error'>('checking');
 	const [googleMapsError, setGoogleMapsError] = useState<string | null>(null);
 	const [map, setMap] = useState<google.maps.Map | null>(null);
@@ -652,7 +650,6 @@ export function InteractiveMap() {
 	const [animationFrame, setAnimationFrame] = useState(0);
 	const [landslideMarkers, setLandslideMarkers] = useState<google.maps.Marker[]>([]);
 	const [fireMarkers, setFireMarkers] = useState<google.maps.Marker[]>([]);
-	const [seismicMarkers, setSeismicMarkers] = useState<google.maps.Marker[]>([]);
 	const [landslideZones, setLandslideZones] = useState<google.maps.Polygon[]>([]);
 	const [fireZones, setFireZones] = useState<google.maps.Polygon[]>([]);
 	const [energyZones, setEnergyZones] = useState<google.maps.Polygon[]>([]);
