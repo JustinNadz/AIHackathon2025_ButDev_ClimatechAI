@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
-import { MapPin, Layers, Zap, Droplets, Mountain, Flame, Cloud, ArrowLeft, ChevronDown, Info } from "lucide-react"
+import { MapPin, Layers, Droplets, Mountain, Flame, Cloud, ArrowLeft, ChevronDown, Info } from "lucide-react"
 import dynamic from "next/dynamic"
 
 // Props for the AlphaEarth overlay component
@@ -567,12 +567,7 @@ const render = (status: Status): React.ReactElement => {
 };
 
 export function InteractiveMap() {
-  const [mapType, setMapType] = useState<'roadmap' | 'terrain' | 'satellite'>('satellite');
-  const [showLayers, setShowLayers] = useState(false);
-  const [showRiskZones, setShowRiskZones] = useState(true);
   const [selectedLocation, setSelectedLocation] = useState<{lat: number, lng: number}>({lat: 10.7302, lng: 122.5591});
-  const [locations, setLocations] = useState<WeatherData[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [selectedLayer, setSelectedLayer] = useState<string>("all");
   const [apiKeyStatus, setApiKeyStatus] = useState<'checking' | 'valid' | 'invalid' | 'billing-error'>('checking');
   const [googleMapsError, setGoogleMapsError] = useState<string | null>(null);

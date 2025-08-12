@@ -5,7 +5,6 @@ import { useEffect, useState } from "react"
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -21,10 +20,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
   LayoutDashboard,
-  Radio,
   TrendingUp,
   AlertTriangle,
-  Zap,
   FileText,
   Settings,
   HelpCircle,
@@ -40,7 +37,6 @@ import { usePathname } from "next/navigation"
 const menuItems = [
   { title: "Dashboard Overview", icon: LayoutDashboard, url: "/dashboard" },
   { title: "Emergency Protocols", icon: AlertTriangle, url: "/dashboard/emergency" },
-  { title: "Live Data Feed", icon: Radio, url: "/dashboard/live-data" },
   { title: "Predictive Analytics", icon: TrendingUp, url: "/dashboard/analytics" },
   { title: "Reports & Logs", icon: FileText, url: "/dashboard/reports" },
   { title: "System and User Management", icon: Settings, url: "/dashboard/admin" },
