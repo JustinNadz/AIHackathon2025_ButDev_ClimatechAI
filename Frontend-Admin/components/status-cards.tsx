@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Cloud, Activity, Mic } from "lucide-react"
+import { Cloud, Activity, Users } from "lucide-react"
 import Link from "next/link"
 
 interface WeatherAnalysis {
@@ -88,27 +88,18 @@ export function StatusCards() {
         </CardContent>
       </Card>
 
-      <Card className="border-blue-200">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-blue-700">Seismic Activity</CardTitle>
-          <Activity className="h-4 w-4 text-blue-600" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-blue-900">Mag 3.2</div>
-          <p className="text-xs text-blue-600">Last recorded 2 hours ago</p>
-          <Badge className="mt-2 bg-green-100 text-green-800">Normal</Badge>
-        </CardContent>
-      </Card>
+      {/* Seismic card removed per request */}
 
       <Card className="border-blue-200 w-full">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-blue-700">Voice Assistant</CardTitle>
+          <CardTitle className="text-sm font-medium text-blue-700">System and User Management</CardTitle>
+          <Users className="h-4 w-4 text-blue-600" />
         </CardHeader>
         <CardContent>
-          <Link href="/assistant">
-            <Button className="w-full bg-blue-600 hover:bg-blue-700">
-              <Mic className="h-4 w-4 mr-2" /> C.L.I.M.A
-            </Button>
+          <Link href="/dashboard/admin" className="block">
+            <div className="text-2xl font-bold text-blue-900">Manage Users</div>
+            <p className="text-xs text-blue-600">Open the admin panel</p>
+            <Badge className="mt-2 bg-green-100 text-green-800">Ready</Badge>
           </Link>
         </CardContent>
       </Card>
